@@ -12,17 +12,17 @@
 #include "transformation_eg.h"
 #include <iostream>
 
-double CTransformation::degree2Radian(const double& degree)
+double CTransformation_EG::degree2Radian(const double& degree)
 {
 	return degree * M_PI / 180;
 }
 
-double CTransformation::radian2Degree(const double& radian)
+double CTransformation_EG::radian2Degree(const double& radian)
 {
 	return radian * 180 / M_PI;
 }
 
-Eigen::Matrix3d CTransformation::rotDegree2Matrix(double rx, double ry, double rz, const E_ROTATION_SEQUENCE& rotSeq)
+Eigen::Matrix3d CTransformation_EG::rotDegree2Matrix(double rx, double ry, double rz, const E_ROTATION_SEQUENCE& rotSeq)
 {
 	Eigen::Matrix3d rotationMatrix;
 
@@ -46,7 +46,7 @@ Eigen::Matrix3d CTransformation::rotDegree2Matrix(double rx, double ry, double r
 	return rotationMatrix;
 }
 
-Eigen::Matrix3d CTransformation::rotRadian2Matrix(double rx, double ry, double rz, const E_ROTATION_SEQUENCE& rotSeq)
+Eigen::Matrix3d CTransformation_EG::rotRadian2Matrix(double rx, double ry, double rz, const E_ROTATION_SEQUENCE& rotSeq)
 {
 	Eigen::Matrix3d rotationMatrix;
 
@@ -66,7 +66,7 @@ Eigen::Matrix3d CTransformation::rotRadian2Matrix(double rx, double ry, double r
 	return rotationMatrix;
 }
 
-Eigen::Vector3d CTransformation::rotMatrix2RotDegree(const Eigen::Matrix3d& matrix, const E_ROTATION_SEQUENCE& rotSeq)
+Eigen::Vector3d CTransformation_EG::rotMatrix2RotDegree(const Eigen::Matrix3d& matrix, const E_ROTATION_SEQUENCE& rotSeq)
 {
 	double R11, R12, R13, R21, R22, R23, R31, R32, R33;
 	R11 = matrix(0, 0);		R12 = matrix(0, 1);		R13 = matrix(0, 2);
@@ -131,7 +131,7 @@ Eigen::Vector3d CTransformation::rotMatrix2RotDegree(const Eigen::Matrix3d& matr
 	}
 }
 
-Eigen::Vector3d CTransformation::rotMatrix2RotRadian(const Eigen::Matrix3d& matrix, const E_ROTATION_SEQUENCE& rotSeq)
+Eigen::Vector3d CTransformation_EG::rotMatrix2RotRadian(const Eigen::Matrix3d& matrix, const E_ROTATION_SEQUENCE& rotSeq)
 {
 	double R11, R12, R13, R21, R22, R23, R31, R32, R33;
 	R11 = matrix(0, 0);		R12 = matrix(0, 1);		R13 = matrix(0, 2);
@@ -196,7 +196,7 @@ Eigen::Vector3d CTransformation::rotMatrix2RotRadian(const Eigen::Matrix3d& matr
 	}
 }
 
-Eigen::Matrix4d CTransformation::pose2HmMatrix(double x, double y, double z, double rx, double ry, double rz, const E_ROTATION_SEQUENCE& rotSeq, const E_ANGLE_TYPE& angleType)
+Eigen::Matrix4d CTransformation_EG::pose2HmMatrix(double x, double y, double z, double rx, double ry, double rz, const E_ROTATION_SEQUENCE& rotSeq, const E_ANGLE_TYPE& angleType)
 {
 	Eigen::Matrix4d hmMatrix = Eigen::Matrix4d::Identity();
 
@@ -220,12 +220,12 @@ Eigen::Matrix4d CTransformation::pose2HmMatrix(double x, double y, double z, dou
 	return hmMatrix;
 }
 
-Eigen::Matrix4d CTransformation::pose2HmMatrix(const S_POSE& pose, const E_ROTATION_SEQUENCE& rotSeq, const E_ANGLE_TYPE& angleType)
+Eigen::Matrix4d CTransformation_EG::pose2HmMatrix(const S_POSE& pose, const E_ROTATION_SEQUENCE& rotSeq, const E_ANGLE_TYPE& angleType)
 {
 	return pose2HmMatrix(pose.X, pose.Y, pose.Z, pose.Rx, pose.Ry, pose.Rz, rotSeq, angleType);
 }
 
-S_POSE CTransformation::hmMatrix2Pose(const Eigen::Matrix4d& hmMatrix, const E_ROTATION_SEQUENCE& rotSeq, const E_ANGLE_TYPE& angleType)
+S_POSE CTransformation_EG::hmMatrix2Pose(const Eigen::Matrix4d& hmMatrix, const E_ROTATION_SEQUENCE& rotSeq, const E_ANGLE_TYPE& angleType)
 {
 	Eigen::Matrix3d rotMatrix = hmMatrix.block<3, 3>(0, 0);
 

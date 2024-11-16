@@ -18,7 +18,7 @@
 #include <Eigen/Geometry>
 #include "common.h"
 
-class CTransformation
+class CTransformation_EG
 {
 public:
 	/// <summary>

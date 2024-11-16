@@ -1,7 +1,6 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-
 #include <math.h>
 
 #ifndef M_PI

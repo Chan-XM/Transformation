@@ -21,15 +21,15 @@ int main()
 
 	std::cout << "X Y Z Rx Ry Rz = " << x << " " << y << " " << z << " " << rx << " " << ry << " " << rz << std::endl;
 
-	Eigen::Matrix3d retMat = CTransformation::rotDegree2Matrix(rx, ry, rz/*,E_ROTATION_SEQUENCE::E_SEQ_ZYX*/);
+	Eigen::Matrix3d retMat = CTransformation_EG::rotDegree2Matrix(rx, ry, rz/*,E_ROTATION_SEQUENCE::E_SEQ_ZYX*/);
 
 	cout << "retMat = " << endl << retMat << endl;
 
-	Eigen::Vector3d retVec = CTransformation::rotMatrix2RotDegree(retMat/*, E_ROTATION_SEQUENCE::E_SEQ_ZYX*/);
+	Eigen::Vector3d retVec = CTransformation_EG::rotMatrix2RotDegree(retMat/*, E_ROTATION_SEQUENCE::E_SEQ_ZYX*/);
 
 	cout << "retVec = " << endl << retVec << endl;
 
-	Eigen::Matrix4d hmMatrix = CTransformation::pose2HmMatrix(pose/*, E_ROTATION_SEQUENCE::E_SEQ_ZYX*/);
+	Eigen::Matrix4d hmMatrix = CTransformation_EG::pose2HmMatrix(pose/*, E_ROTATION_SEQUENCE::E_SEQ_ZYX*/);
 
 	cout << "hmMatrix = " << endl << hmMatrix << endl;
 
@@ -39,16 +39,16 @@ int main()
 	-0.0294315865873748, 0.001054256693534112, 0.9995662410534754, 129.5884080840378,
 	0, 0, 0, 1;
 
-	S_POSE poseHandEye = CTransformation::hmMatrix2Pose(handEyeMatrix, E_ROTATION_SEQUENCE::E_SEQ_ZYX);
+	S_POSE poseHandEye = CTransformation_EG::hmMatrix2Pose(handEyeMatrix, E_ROTATION_SEQUENCE::E_SEQ_ZYX);
 
 	std::cout << "Pose = [" << poseHandEye.X << " " << poseHandEye.Y << " " << poseHandEye.Z <<
 		" " << poseHandEye.Rx << " " << poseHandEye.Ry << " " << poseHandEye.Rz << "]"; 
 
-	/*Eigen::Matrix4d hmMatrix = CTransformation::pose2HmMatrix(x, y, z, rx, ry, rz);
+	/*Eigen::Matrix4d hmMatrix = CTransformation_EG::pose2HmMatrix(x, y, z, rx, ry, rz);
 
 	std::cout << "hmMatrix = " << std::endl << hmMatrix;
 
-	S_POSE robPose = CTransformation::hmMatrix2Pose(hmMatrix);
+	S_POSE robPose = CTransformation_EG::hmMatrix2Pose(hmMatrix);
 
 	std::cout << "RobPose = [" << robPose.X << " " << robPose.Y << " " << robPose.Z <<
 		" " << robPose.Rx << " " << robPose.Ry << " " << robPose.Rz << "]";*/
