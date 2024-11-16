@@ -109,8 +109,6 @@ public:
 		const E_ROTATION_SEQUENCE& rotSeq = E_ROTATION_SEQUENCE::E_SEQ_XYZ,
 		const E_ANGLE_TYPE& angleType = E_ANGLE_TYPE::E_TYPE_DEGREE);
 
-private:
-
 };
 
 #endif // !TRANSFORMATION_EG_H
