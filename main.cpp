@@ -2,6 +2,7 @@
 #include <string>
 
 #include "transformation_eg.h"
+#include "transformation_cv.h"
 
 using namespace std;
 
@@ -21,17 +22,20 @@ int main()
 
 	std::cout << "X Y Z Rx Ry Rz = " << x << " " << y << " " << z << " " << rx << " " << ry << " " << rz << std::endl;
 
-	Eigen::Matrix3d retMat = CTransformation_EG::rotDegree2Matrix(rx, ry, rz/*,E_ROTATION_SEQUENCE::E_SEQ_ZYX*/);
+	// ******************************* Test CTransformation_EG ******************************* // 
+	std::cout << std::endl << "******************************* Test CTransformation_EG *******************************" << std::endl << std::endl;
 
-	cout << "retMat = " << endl << retMat << endl;
+	Eigen::Matrix3d retMat = CTransformation_EG::rotDegree2Matrix(rx, ry, rz);
 
-	Eigen::Vector3d retVec = CTransformation_EG::rotMatrix2RotDegree(retMat/*, E_ROTATION_SEQUENCE::E_SEQ_ZYX*/);
+	cout << "retMat = " << endl << retMat << endl << endl;
 
-	cout << "retVec = " << endl << retVec << endl;
+	Eigen::Vector3d retVec = CTransformation_EG::rotMatrix2RotDegree(retMat);
 
-	Eigen::Matrix4d hmMatrix = CTransformation_EG::pose2HmMatrix(pose/*, E_ROTATION_SEQUENCE::E_SEQ_ZYX*/);
+	cout << "retVec = " << endl << retVec << endl << endl;
 
-	cout << "hmMatrix = " << endl << hmMatrix << endl;
+	Eigen::Matrix4d hmMatrix = CTransformation_EG::pose2HmMatrix(pose);
+
+	cout << "hmMatrix = " << endl << hmMatrix << endl << endl;
 
 	Eigen::Matrix4d handEyeMatrix;
 	handEyeMatrix << -0.7823792128542812, -0.6224001076123106, -0.02238019967961234, 104.1779385005517,
@@ -42,7 +46,7 @@ int main()
 	S_POSE poseHandEye = CTransformation_EG::hmMatrix2Pose(handEyeMatrix, E_ROTATION_SEQUENCE::E_SEQ_ZYX);
 
 	std::cout << "Pose = [" << poseHandEye.X << " " << poseHandEye.Y << " " << poseHandEye.Z <<
-		" " << poseHandEye.Rx << " " << poseHandEye.Ry << " " << poseHandEye.Rz << "]"; 
+		" " << poseHandEye.Rx << " " << poseHandEye.Ry << " " << poseHandEye.Rz << "]" << std::endl;
 
 	/*Eigen::Matrix4d hmMatrix = CTransformation_EG::pose2HmMatrix(x, y, z, rx, ry, rz);
 
@@ -52,6 +56,21 @@ int main()
 
 	std::cout << "RobPose = [" << robPose.X << " " << robPose.Y << " " << robPose.Z <<
 		" " << robPose.Rx << " " << robPose.Ry << " " << robPose.Rz << "]";*/
+
+	std::cout << std::endl << "******************************* Test CTransformation_EG *******************************" << std::endl << std::endl;
+
+	// ******************************* Test CTransformation_CV ******************************* // 
+	std::cout << "******************************* Test CTransformation_CV *******************************" << std::endl << std::endl;
+
+	cv::Mat retMat_cv = CTransformation_CV::rotDegree2Matrix(rx, ry, rz);
+
+	cout << "retMat_cv = " << endl << retMat_cv << endl << endl;
+
+	cv::Vec3d retVec_cv = CTransformation_CV::rotMatrix2RotDegree(retMat_cv);
+
+	cout << "retVec_cv = " << endl << retVec_cv << endl << endl;
+
+	std::cout << std::endl << "******************************* Test CTransformation_CV *******************************" << std::endl << std::endl;
 
 	return 0;
 }
