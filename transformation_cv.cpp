@@ -54,6 +54,12 @@ cv::Vec3d CTransformation_CV::rotMatrix2RotDegree(const cv::Mat& matrix, const E
 
 cv::Vec3d CTransformation_CV::rotMatrix2RotRadian(const cv::Mat& matrix, const E_ROTATION_SEQUENCE& rotSeq)
 {
+    if (matrix.cols != 3 || matrix.rows != 3)
+    {
+        std::cerr << "rotMatrix2RotRadian() matrix £¡= 3x3" << std::endl;
+        return cv::Vec3d();
+    }
+
     if (matrix.channels() != 1)
     {
         std::cerr << "rotMatrix2RotDegree() matrix channels != 1" << std::endl;
@@ -142,6 +148,4 @@ cv::Vec3d CTransformation_CV::rotMatrix2RotRadian(const cv::Mat& matrix, const E
     {
         return cv::Vec3d();
     }
-
-    return cv::Vec3d();
 }
