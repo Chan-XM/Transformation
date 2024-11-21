@@ -29,21 +29,6 @@ Eigen::Matrix3d CTransformation_EG::rotDegree2Matrix(double rx, double ry, doubl
 	rz = degree2Radian(rz);
 
 	return CTransformation_EG::rotRadian2Matrix(rx, ry, rz, rotSeq);
-
-	/*Eigen::AngleAxisd rotX(Eigen::AngleAxisd(rx, Eigen::Vector3d::UnitX()));
-	Eigen::AngleAxisd rotY(Eigen::AngleAxisd(ry, Eigen::Vector3d::UnitY()));
-	Eigen::AngleAxisd rotZ(Eigen::AngleAxisd(rz, Eigen::Vector3d::UnitZ()));
-
-	if (rotSeq == E_ROTATION_SEQUENCE::E_SEQ_XYZ)
-	{
-		rotationMatrix = rotZ * rotY * rotX;
-	}
-	else
-	{
-		rotationMatrix = rotX * rotY * rotZ;
-	}
-
-	return rotationMatrix;*/
 }
 
 Eigen::Matrix3d CTransformation_EG::rotRadian2Matrix(double rx, double ry, double rz, const E_ROTATION_SEQUENCE& rotSeq)
