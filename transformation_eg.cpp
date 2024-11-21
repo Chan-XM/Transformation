@@ -53,67 +53,7 @@ Eigen::Matrix3d CTransformation_EG::rotRadian2Matrix(double rx, double ry, doubl
 
 Eigen::Vector3d CTransformation_EG::rotMatrix2RotDegree(const Eigen::Matrix3d& matrix, const E_ROTATION_SEQUENCE& rotSeq)
 {
-	double R11, R12, R13, R21, R22, R23, R31, R32, R33;
-	R11 = matrix(0, 0);		R12 = matrix(0, 1);		R13 = matrix(0, 2);
-	R21 = matrix(1, 0);		R22 = matrix(1, 1);		R23 = matrix(1, 2);
-	R31 = matrix(2, 0);		R32 = matrix(2, 1);		R33 = matrix(2, 2);
-
-	double alfa = 0.0, beta = 0.0, gama = 0.0;
-
-	if (rotSeq == E_ROTATION_SEQUENCE::E_SEQ_XYZ)
-	{
-		beta = std::atan2(-R31, std::sqrt(R11 * R11 + R21 * R21));
-
-		if (std::abs(beta - M_PI / 2) < 1e-6)
-		{
-			beta = M_PI / 2;
-			alfa = 0.0;
-			gama = std::atan2(R12, R22);
-		}
-		else if (std::abs(beta + M_PI / 2) < 1e-6)
-		{
-			beta = -M_PI / 2;
-			alfa = 0.0;
-			gama = -std::atan2(R12, R22);
-		}
-		else
-		{
-			alfa = std::atan2(R21 / std::cos(beta), R11 / std::cos(beta));
-			gama = std::atan2(R32 / std::cos(beta), R33 / std::cos(beta));
-		}
-
-		Eigen::Vector3d rotDegree = { gama, beta,alfa };
-		return rotDegree * 180 / M_PI;
-	}
-	else if (rotSeq == E_ROTATION_SEQUENCE::E_SEQ_ZYX)
-	{
-		beta = std::atan2(R13, std::sqrt(R11 * R11 + R12 * R12));
-
-		if (std::abs(beta - M_PI / 2) < 1e-6)
-		{
-			beta = M_PI / 2;
-			alfa = 0.0;
-			gama = std::atan2(R32, R22);
-		}
-		else if (std::abs(beta + M_PI / 2) < 1e-6)
-		{
-			beta = -M_PI / 2;
-			alfa = 0.0;
-			gama = -std::atan2(R32, R22);
-		}
-		else
-		{
-			alfa = std::atan2(-R23 / std::cos(beta), R33 / std::cos(beta));
-			gama = std::atan2(-R12 / std::cos(beta), R11 / std::cos(beta));
-		}
-
-		Eigen::Vector3d rotDegree = { alfa, beta, gama };
-		return rotDegree * 180 / M_PI;
-	}
-	else
-	{
-		return Eigen::Vector3d();
-	}
+	return rotMatrix2RotRadian(matrix, rotSeq) * 180 / M_PI;
 }
 
 Eigen::Vector3d CTransformation_EG::rotMatrix2RotRadian(const Eigen::Matrix3d& matrix, const E_ROTATION_SEQUENCE& rotSeq)
