@@ -16,32 +16,7 @@ cv::Mat CTransformation_CV::rotDegree2Matrix(double rx, double ry, double rz, co
     ry = degree2Radian(ry);
     rz = degree2Radian(rz);
 
-    cv::Mat rotationMatrix = rotRadian2Matrix(rx, ry, rz, rotSeq);
-
-    /*cv::Mat rotX = (cv::Mat_<double>(3, 3) <<
-        1, 0, 0,
-        0, cos(rx), -sin(rx),
-        0, sin(rx), cos(rx));
-
-    cv::Mat rotY = (cv::Mat_<double>(3, 3) <<
-        cos(ry), 0, sin(ry),
-        0, 1, 0,
-        -sin(ry), 0, cos(ry));
-
-    cv::Mat rotZ = (cv::Mat_<double>(3, 3) <<
-        cos(rz), -sin(rz), 0,
-        sin(rz), cos(rz), 0,
-        0, 0, 1);
-
-    cv::Mat rotationMatrix;
-    if (rotSeq == E_ROTATION_SEQUENCE::E_SEQ_XYZ) {
-        rotationMatrix = rotZ * rotY * rotX;
-    }
-    else {
-        rotationMatrix = rotX * rotY * rotZ;
-    }*/
-
-    return rotationMatrix;
+    return rotRadian2Matrix(rx, ry, rz, rotSeq);
 }
 
 cv::Mat CTransformation_CV::rotRadian2Matrix(double rx, double ry, double rz, const E_ROTATION_SEQUENCE& rotSeq)
@@ -74,9 +49,7 @@ cv::Mat CTransformation_CV::rotRadian2Matrix(double rx, double ry, double rz, co
 
 cv::Vec3d CTransformation_CV::rotMatrix2RotDegree(const cv::Mat& matrix, const E_ROTATION_SEQUENCE& rotSeq)
 {
-    cv::Vec3d rotRadian = rotMatrix2RotRadian(matrix, rotSeq);
-
-    return rotRadian * 180 / M_PI;
+    return rotMatrix2RotRadian(matrix, rotSeq) * 180 / M_PI;
 }
 
 cv::Vec3d CTransformation_CV::rotMatrix2RotRadian(const cv::Mat& matrix, const E_ROTATION_SEQUENCE& rotSeq)
