@@ -24,13 +24,13 @@ double CTransformation_EG::radian2Degree(const double& radian)
 
 Eigen::Matrix3d CTransformation_EG::rotDegree2Matrix(double rx, double ry, double rz, const E_ROTATION_SEQUENCE& rotSeq)
 {
-	Eigen::Matrix3d rotationMatrix;
-
 	rx = degree2Radian(rx);
 	ry = degree2Radian(ry);
 	rz = degree2Radian(rz);
 
-	Eigen::AngleAxisd rotX(Eigen::AngleAxisd(rx, Eigen::Vector3d::UnitX()));
+	return CTransformation_EG::rotRadian2Matrix(rx, ry, rz, rotSeq);
+
+	/*Eigen::AngleAxisd rotX(Eigen::AngleAxisd(rx, Eigen::Vector3d::UnitX()));
 	Eigen::AngleAxisd rotY(Eigen::AngleAxisd(ry, Eigen::Vector3d::UnitY()));
 	Eigen::AngleAxisd rotZ(Eigen::AngleAxisd(rz, Eigen::Vector3d::UnitZ()));
 
@@ -43,7 +43,7 @@ Eigen::Matrix3d CTransformation_EG::rotDegree2Matrix(double rx, double ry, doubl
 		rotationMatrix = rotX * rotY * rotZ;
 	}
 
-	return rotationMatrix;
+	return rotationMatrix;*/
 }
 
 Eigen::Matrix3d CTransformation_EG::rotRadian2Matrix(double rx, double ry, double rz, const E_ROTATION_SEQUENCE& rotSeq)
