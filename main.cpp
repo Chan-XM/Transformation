@@ -9,18 +9,14 @@ using namespace std;
 int main()
 {
 	double x, y, z;
-	x = 300;
-	y = 734;
-	z = 856;
+	x = 300;	y = 734;	z = 856;
 
 	double rx, ry, rz;
-	rx = -136.142;
-	ry = 77.359;
-	rz = 14.78;
+	rx = -136.142;	ry = 77.359;	rz = 14.78;
 
 	S_POSE pose(x, y, z, rx, ry, rz);
 
-	std::cout << "X Y Z Rx Ry Rz = " << x << " " << y << " " << z << " " << rx << " " << ry << " " << rz << std::endl;
+	std::cout << "pose = " << x << " " << y << " " << z << " " << rx << " " << ry << " " << rz << std::endl;
 
 	// ******************************* Test CTransformation_EG ******************************* // 
 	std::cout << std::endl << "******************************* Test CTransformation_EG *******************************" << std::endl << std::endl;
@@ -60,7 +56,8 @@ int main()
 	std::cout << std::endl << "******************************* Test CTransformation_EG *******************************" << std::endl << std::endl;
 
 	// ******************************* Test CTransformation_CV ******************************* // 
-	std::cout << "******************************* Test CTransformation_CV *******************************" << std::endl << std::endl;
+
+	std::cout << std::endl << "******************************* Test CTransformation_CV *******************************" << std::endl << std::endl;
 
 	cv::Mat retMat_cv = CTransformation_CV::rotDegree2Matrix(rx, ry, rz);
 
@@ -69,6 +66,15 @@ int main()
 	cv::Vec3d retVec_cv = CTransformation_CV::rotMatrix2RotDegree(retMat_cv);
 
 	cout << "retVec_cv = " << endl << retVec_cv << endl << endl;
+
+	cv::Mat hmMatrix_cv = CTransformation_CV::pose2HmMatrix(pose);
+
+	cout << "hmMatrix_cv = " << endl << hmMatrix_cv << endl << endl;
+
+	S_POSE pose_cv = CTransformation_CV::hmMatrix2Pose(hmMatrix_cv);
+
+	cout << "pose_cv = [" << pose_cv.X << " " << pose_cv.Y << " " << pose_cv.Z << " "
+		<< pose_cv.Rx << " " << pose_cv.Ry << " " << pose_cv.Rz << "]";
 
 	std::cout << std::endl << "******************************* Test CTransformation_CV *******************************" << std::endl << std::endl;
 

@@ -87,7 +87,7 @@ cv::Vec3d CTransformation_CV::rotMatrix2RotRadian(const cv::Mat& matrix, const E
 
     default:
     {
-        std::cerr << "rotMatrix2RotDegree() matrix type ! float/double" << std::endl;
+        std::cerr << "rotMatrix2RotDegree() matrix type != float/double" << std::endl;
         return cv::Vec3d();
     }
     }
@@ -148,4 +148,92 @@ cv::Vec3d CTransformation_CV::rotMatrix2RotRadian(const cv::Mat& matrix, const E
     {
         return cv::Vec3d();
     }
+}
+
+cv::Mat CTransformation_CV::pose2HmMatrix(double x, double y, double z, double rx, double ry, double rz, const E_ROTATION_SEQUENCE& rotSeq, const E_ANGLE_TYPE& angleType)
+{
+    cv::Mat hmMatrix = cv::Mat::eye(4, 4, CV_64F);
+
+    cv::Mat rotMatrix;
+
+    if (angleType == E_ANGLE_TYPE::E_TYPE_DEGREE)
+    {
+        rotMatrix = rotDegree2Matrix(rx, ry, rz, rotSeq);
+    }
+    else
+    {
+        rotMatrix = rotRadian2Matrix(rx, ry, rz, rotSeq);
+    }
+
+    rotMatrix.copyTo(hmMatrix(cv::Rect(0, 0, 3, 3)));
+
+    hmMatrix.at<double>(0, 3) = x;
+    hmMatrix.at<double>(1, 3) = y;
+    hmMatrix.at<double>(2, 3) = z;
+
+    return hmMatrix;
+}
+
+cv::Mat CTransformation_CV::pose2HmMatrix(const S_POSE& pose, const E_ROTATION_SEQUENCE& rotSeq, const E_ANGLE_TYPE& angleType)
+{
+    return pose2HmMatrix(pose.X, pose.Y, pose.Z, pose.Rx, pose.Ry, pose.Rz, rotSeq, angleType);
+}
+
+S_POSE CTransformation_CV::hmMatrix2Pose(const cv::Mat& hmMatrix, const E_ROTATION_SEQUENCE& rotSeq, const E_ANGLE_TYPE& angleType)
+{
+    double x = 0.0, y = 0.0, z = 0.0, rx = 0.0, ry = 0.0, rz = 0.0;
+
+    if (hmMatrix.cols != 4 || hmMatrix.rows != 4)
+    {
+        std::cerr << "hmMatrix2Pose() hmMatrix != 4x4" << std::endl;
+        return S_POSE(x, y, z, rx, ry, rz);
+    }
+
+    if (hmMatrix.channels() != 1)
+    {
+        std::cerr << "hmMatrix2Pose() hmMatrix channels != 1" << std::endl;
+        return S_POSE(x, y, z, rx, ry, rz);
+    }
+
+    cv::Mat rotMatrix = hmMatrix(cv::Range(0, 3), cv::Range(0, 3));
+
+    std::cout << "rotMatrix = " << rotMatrix << std::endl << std::endl;
+
+    cv::Vec3d angles;
+
+    if (angleType == E_ANGLE_TYPE::E_TYPE_DEGREE)
+    {
+        angles = rotMatrix2RotDegree(rotMatrix, rotSeq);
+    }
+    else
+    {
+        angles = rotMatrix2RotRadian(rotMatrix, rotSeq);
+    }
+
+    rx = angles[0];     ry = angles[1];     rz = angles[2];
+
+    switch (CV_MAT_DEPTH(hmMatrix.type()))
+    {
+    case CV_32F:
+    {
+        x = hmMatrix.at<float>(0, 3);
+        y = hmMatrix.at<float>(1, 3);
+        z = hmMatrix.at<float>(2, 3);
+        break;
+    }
+    case CV_64F:
+    {
+        x = hmMatrix.at<double>(0, 3);
+        y = hmMatrix.at<double>(1, 3);
+        z = hmMatrix.at<double>(2, 3);
+        break;
+    }
+    default:
+    {
+        std::cerr << "hmMatrix2Pose() matrix type != float/double" << std::endl;
+        return S_POSE(x, y, z, rx, ry, rz);
+    }
+    }
+
+    return S_POSE(x, y, z, rx, ry, rz);
 }
