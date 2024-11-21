@@ -74,12 +74,12 @@ public:
 	/// <summary>
 	/// 位姿 -> 齐次矩阵
 	/// </summary>
-	/// <param name="x"></param>
-	/// <param name="y"></param>
-	/// <param name="z"></param>
-	/// <param name="rx"></param>
-	/// <param name="ry"></param>
-	/// <param name="rz"></param>
+	/// <param name="x">X</param>
+	/// <param name="y">Y</param>
+	/// <param name="z">Z</param>
+	/// <param name="rx">Rx</param>
+	/// <param name="ry">Ry</param>
+	/// <param name="rz">Rz</param>
 	/// <param name="rotSeq">旋转角顺序 默认按照X-Y-Z固定角坐标系（或Z-Y-X欧拉角坐标系 二者等价） </param>
 	/// <param name="angleType">角度单位 默认为degree</param>
 	/// <returns>齐次矩阵（4x4）</returns>
@@ -108,7 +108,6 @@ public:
 	static S_POSE hmMatrix2Pose(const cv::Mat& hmMatrix,
 		const E_ROTATION_SEQUENCE& rotSeq = E_ROTATION_SEQUENCE::E_SEQ_XYZ,
 		const E_ANGLE_TYPE& angleType = E_ANGLE_TYPE::E_TYPE_DEGREE);
-
 };
 
 #endif // !TRANSFORMATION_CV_H

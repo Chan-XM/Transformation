@@ -1,3 +1,13 @@
+/*****************************************************************************
+*  @file     transformation_cv.cpp                                           *
+*  @brief    用OpenCV实现三维空间中位姿与矩阵之间的变换                          *
+*                                                                            *
+*  @author   Chan_XM                                                         *
+*  @email    chan_xm14@163.com			                                     *
+*  @version  V1.0														     *
+*  @date     2024/11/16													     *
+*  @license  NON															 *
+*****************************************************************************/
 #include "transformation_cv.h"
 
 double CTransformation_CV::degree2Radian(const double& degree)
