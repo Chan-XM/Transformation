@@ -108,7 +108,61 @@ public:
 	static S_POSE hmMatrix2Pose(const cv::Mat& hmMatrix,
 		const E_ROTATION_SEQUENCE& rotSeq = E_ROTATION_SEQUENCE::E_SEQ_XYZ,
 		const E_ANGLE_TYPE& angleType = E_ANGLE_TYPE::E_TYPE_DEGREE);
+
+	/// <summary>
+	/// 通过Rodrigues将旋转向量转为矩阵
+	/// </summary>
+	/// <param name="k1">旋转向量1（弧度制）</param>
+	/// <param name="k2">旋转向量2（弧度制）</param>
+	/// <param name="k3">旋转向量3（弧度制）</param>
+	/// <returns>旋转矩阵</returns>
+	static cv::Mat rotRadian2Matrix_Rodrigues(const double k1, const double k2, const double k3);
+
+	/// <summary>
+	/// 通过Rodrigues将旋转向量转为矩阵
+	/// </summary>
+	/// <param name="k1">旋转向量1（角度制）</param>
+	/// <param name="k2">旋转向量2（角度制）</param>
+	/// <param name="k3">旋转向量3（角度制）</param>
+	/// <returns>旋转矩阵</returns>
+	static cv::Mat rotDegree2Matrix_Rodrigues(const double k1, const double k2, const double k3);
+
+	/// <summary>
+	/// 通过Rodrigues将旋转矩阵转为旋转向量
+	/// </summary>
+	/// <param name="rotMat">旋转矩阵</param>
+	/// <returns>旋转向量（弧度制）</returns>
+	static cv::Vec3d rotMatrix2RotRadian_Rodrigues(const cv::Mat& rotMat);
+
+	/// <summary>
+	/// 通过Rodrigues将旋转矩阵转为旋转向量
+	/// </summary>
+	/// <param name="rotMat">旋转矩阵</param>
+	/// <returns>旋转向量（角度制）</returns>
+	static cv::Vec3d rotMatrix2RotDegree_Rodrigues(const cv::Mat& rotMat);
+
+	/// <summary>
+	/// 位姿转为齐次矩阵 旋转矩阵部分用Rodrigues实现
+	/// </summary>
+	/// <param name="x">平移向量1</param>
+	/// <param name="y">平移向量2</param>
+	/// <param name="z">平移向量3</param>
+	/// <param name="k1">旋转向量1</param>
+	/// <param name="k2">旋转向量2</param>
+	/// <param name="k3">旋转向量3</param>
+	/// <param name="angleType">角度/弧度</param>
+	/// <returns>齐次矩阵</returns>
+	static cv::Mat pose2HmMatrix_Rodrigues(const double x, const double y, const double z, const double k1, const double k2, const double k3, const E_ANGLE_TYPE& angleType = E_ANGLE_TYPE::E_TYPE_DEGREE);
+
+	/// <summary>
+	/// 位姿转为齐次矩阵 旋转矩阵部分用Rodrigues实现
+	/// </summary>
+	/// <param name="pose">位姿</param>
+	/// <param name="angleType">角度/弧度</param>
+	/// <returns>齐次矩阵</returns>
+	static cv::Mat pose2HmMatrix_Rodrigues(const S_POSE& pose, const E_ANGLE_TYPE& angleType = E_ANGLE_TYPE::E_TYPE_DEGREE);
 };
+
 
 #endif // !TRANSFORMATION_CV_H
 

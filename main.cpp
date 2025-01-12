@@ -12,7 +12,7 @@ int main()
 	x = 300;	y = 734;	z = 856;
 
 	double rx, ry, rz;
-	rx = -136.142;	ry = 77.359;	rz = 14.78;
+	rx = -2.1;	ry = 1.56;	rz = 0.59;
 
 	S_POSE pose(x, y, z, rx, ry, rz);
 
@@ -52,6 +52,16 @@ int main()
 
 	std::cout << "RobPose = [" << robPose.X << " " << robPose.Y << " " << robPose.Z <<
 		" " << robPose.Rx << " " << robPose.Ry << " " << robPose.Rz << "]";*/
+
+	//Eigen::Matrix3d rodMat = CTransformation_EG::rotRadian2Matrix_Rodrigues(rx, ry, rz);
+	Eigen::Matrix3d rodMat = CTransformation_EG::rotDegree2Matrix_Rodrigues(rx, ry, rz);
+
+	std::cout << std:: endl << "rodMat = " << std::endl << rodMat << std::endl;
+
+	//Eigen::Vector3d vec = CTransformation_EG::rotMatrix2RotRadian_Rodrigues(rodMat);
+	Eigen::Vector3d vec = CTransformation_EG::rotMatrix2RotDegree_Rodrigues(rodMat);
+
+	std::cout << std::endl << "vec = " << std::endl << vec << std::endl;
 
 	std::cout << std::endl << "******************************* Test CTransformation_EG *******************************" << std::endl << std::endl;
 

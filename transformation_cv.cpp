@@ -247,3 +247,68 @@ S_POSE CTransformation_CV::hmMatrix2Pose(const cv::Mat& hmMatrix, const E_ROTATI
 
     return S_POSE(x, y, z, rx, ry, rz);
 }
+
+cv::Mat CTransformation_CV::rotRadian2Matrix_Rodrigues(const double k1, const double k2, const double k3)
+{
+    cv::Mat vector = (cv::Mat_<double>(3, 1) << k1, k2, k3);
+    cv::Mat rotMat;
+    cv::Rodrigues(vector, rotMat);
+
+    return rotMat;
+}
+
+cv::Mat CTransformation_CV::rotDegree2Matrix_Rodrigues(const double k1, const double k2, const double k3)
+{
+    return rotRadian2Matrix_Rodrigues(degree2Radian(k1), degree2Radian(k2), degree2Radian(k3));
+}
+
+cv::Vec3d CTransformation_CV::rotMatrix2RotRadian_Rodrigues(const cv::Mat& rotMat)
+{
+    cv::Vec3d rotAngle;
+
+    cv::Mat rotAngleMat;
+    cv::Rodrigues(rotMat, rotAngleMat);
+    rotAngle[0] = rotAngleMat.at<double>(0);
+    rotAngle[1] = rotAngleMat.at<double>(1);
+    rotAngle[2] = rotAngleMat.at<double>(2);
+
+    return rotAngle;
+}
+
+cv::Vec3d CTransformation_CV::rotMatrix2RotDegree_Rodrigues(const cv::Mat& rotMat)
+{
+    cv::Vec3d rotAngle = rotMatrix2RotRadian_Rodrigues(rotMat);
+
+    rotAngle = rotAngle * 180 / M_PI;
+
+    return rotAngle;
+}
+
+cv::Mat CTransformation_CV::pose2HmMatrix_Rodrigues(const double x, const double y, const double z, const double k1, const double k2, const double k3, const E_ANGLE_TYPE& angleType)
+{
+    cv::Mat hmMatrix = cv::Mat::eye(4, 4, CV_64F);
+
+    cv::Mat rotMatrix;
+
+    if (angleType == E_ANGLE_TYPE::E_TYPE_DEGREE)
+    {
+        rotMatrix = rotDegree2Matrix_Rodrigues(k1, k2, k3);
+    }
+    else
+    {
+        rotMatrix = rotRadian2Matrix_Rodrigues(k1, k2, k3);
+    }
+
+    rotMatrix.copyTo(hmMatrix(cv::Rect(0, 0, 3, 3)));
+
+    hmMatrix.at<double>(0, 3) = x;
+    hmMatrix.at<double>(1, 3) = y;
+    hmMatrix.at<double>(2, 3) = z;
+
+    return hmMatrix;
+}
+
+cv::Mat CTransformation_CV::pose2HmMatrix_Rodrigues(const S_POSE& pose, const E_ANGLE_TYPE& angleType)
+{
+    return pose2HmMatrix_Rodrigues(pose.X, pose.Y, pose.Z, pose.Rx, pose.Ry, pose.Rz, angleType);
+}

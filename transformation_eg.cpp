@@ -175,3 +175,119 @@ S_POSE CTransformation_EG::hmMatrix2Pose(const Eigen::Matrix4d& hmMatrix, const 
 	return S_POSE(x, y, z, rx, ry, rz);
 }
 
+Eigen::Matrix3d CTransformation_EG::rotRadian2Matrix_Rodrigues(const double k1, const double k2, const double k3)
+{
+	Eigen::Vector3d rotation_vector(k1, k2, k3);		// 旋转向量
+	double theta = rotation_vector.norm();				// 旋转角度
+
+	// 角度接近0，则返回单位阵
+	if (theta < 1e-10)
+	{
+		return Eigen::Matrix3d::Identity();
+	}
+
+	// 旋转向量 归一化
+	Eigen::Vector3d k = rotation_vector / theta;
+
+	// 反对称矩阵 [k]_x
+	Eigen::Matrix3d K;
+	K << 0, -k.z(), k.y(),
+		k.z(), 0, -k.x(),
+		-k.y(), k.x(), 0;
+
+	// Rodrigues 公式 R=I+sin(θ)[K]_x+(1-cos(θ))[K]_x^2
+	Eigen::Matrix3d R = Eigen::Matrix3d::Identity()
+		+ std::sin(theta) * K
+		+ (1 - std::cos(theta)) * (K * K);
+
+	return R;
+}
+
+Eigen::Matrix3d CTransformation_EG::rotDegree2Matrix_Rodrigues(const double k1, const double k2, const double k3)
+{
+	return rotRadian2Matrix_Rodrigues(degree2Radian(k1), degree2Radian(k2), degree2Radian(k3));
+}
+
+Eigen::Vector3d CTransformation_EG::rotMatrix2RotRadian_Rodrigues(const Eigen::Matrix3d& rotMat)
+{
+	// 检查旋转矩阵是否为正交矩阵（R * R^T = I）且行列式为 1
+	if (!Eigen::Matrix3d::Identity().isApprox(rotMat.transpose() * rotMat, 1e-10) || std::abs(rotMat.determinant() - 1.0) > 1e-10)
+	{
+		return Eigen::Vector3d(0, 0, 0);
+	}
+
+	// 计算旋转角度 θ
+	double theta = std::acos((rotMat.trace() - 1.0) / 2.0);
+
+	// 如果 θ 接近 0，说明旋转矩阵接近单位矩阵
+	if (std::abs(theta) < 1e-10)
+	{
+		return Eigen::Vector3d(0, 0, 0);
+	}
+
+	// 如果 θ 接近 π，需特别处理以避免数值不稳定性
+	if (std::abs(theta - M_PI) < 1e-10)
+	{
+		// 找到旋转轴方向（从反对称[K]_x提取）
+		Eigen::Matrix3d R_plus_I = rotMat + Eigen::Matrix3d::Identity();
+		Eigen::Vector3d k;
+		if (R_plus_I.col(0).norm() > 1e-10)
+		{
+			k = R_plus_I.col(0).normalized();
+		}
+		else if (R_plus_I.col(1).norm() > 1e-10)
+		{
+			k = R_plus_I.col(1).normalized();
+		}
+		else
+		{
+			k = R_plus_I.col(2).normalized();
+		}
+
+		return theta * k;
+	}
+
+	// 计算旋转轴 k
+	Eigen::Vector3d k;
+	k.x() = rotMat(2, 1) - rotMat(1, 2);
+	k.y() = rotMat(0, 2) - rotMat(2, 0);
+	k.z() = rotMat(1, 0) - rotMat(0, 1);
+	k = k.normalized();
+
+	return theta * k;
+}
+
+Eigen::Vector3d CTransformation_EG::rotMatrix2RotDegree_Rodrigues(const Eigen::Matrix3d& rotMat)
+{
+	return rotMatrix2RotRadian_Rodrigues(rotMat) * 180 / M_PI;
+}
+
+Eigen::Matrix4d CTransformation_EG::pose2HmMatrix_Rodrigues(const double x, const double y, const double z, const double k1, const double k2, const double k3, const E_ANGLE_TYPE& angleType)
+{
+	Eigen::Matrix4d hmMatrix = Eigen::Matrix4d::Identity();
+
+	Eigen::Matrix3d rotMatrix;
+
+	if (angleType == E_ANGLE_TYPE::E_TYPE_DEGREE)
+	{
+		rotMatrix = rotDegree2Matrix_Rodrigues(k1, k2, k3);
+	}
+	else
+	{
+		rotMatrix = rotRadian2Matrix_Rodrigues(k1, k2, k3);
+	}
+
+	hmMatrix.block<3, 3>(0, 0) = rotMatrix;
+
+	hmMatrix(0, 3) = x;
+	hmMatrix(1, 3) = y;
+	hmMatrix(2, 3) = z;
+
+	return hmMatrix;
+}
+
+Eigen::Matrix4d CTransformation_EG::pose2HmMatrix_Rodrigues(const S_POSE& pose, const E_ANGLE_TYPE& angleType)
+{
+	return pose2HmMatrix_Rodrigues(pose.X, pose.Y, pose.Z, pose.Rx, pose.Ry, pose.Rz);
+}
+
