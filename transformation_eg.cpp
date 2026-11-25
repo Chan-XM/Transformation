@@ -288,6 +288,6 @@ Eigen::Matrix4d CTransformation_EG::pose2HmMatrix_Rodrigues(const double x, cons
 
 Eigen::Matrix4d CTransformation_EG::pose2HmMatrix_Rodrigues(const S_POSE& pose, const E_ANGLE_TYPE& angleType)
 {
-	return pose2HmMatrix_Rodrigues(pose.X, pose.Y, pose.Z, pose.Rx, pose.Ry, pose.Rz);
+	return pose2HmMatrix_Rodrigues(pose.X, pose.Y, pose.Z, pose.Rx, pose.Ry, pose.Rz, angleType);
 }
 
