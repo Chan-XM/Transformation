@@ -207,8 +207,6 @@ S_POSE CTransformation_CV::hmMatrix2Pose(const cv::Mat& hmMatrix, const E_ROTATI
 
     cv::Mat rotMatrix = hmMatrix(cv::Range(0, 3), cv::Range(0, 3));
 
-    std::cout << "rotMatrix = " << rotMatrix << std::endl << std::endl;
-
     cv::Vec3d angles;
 
     if (angleType == E_ANGLE_TYPE::E_TYPE_DEGREE)
