@@ -63,57 +63,56 @@ Eigen::Vector3d CTransformation_EG::rotMatrix2RotRadian(const Eigen::Matrix3d& m
 	R21 = matrix(1, 0);		R22 = matrix(1, 1);		R23 = matrix(1, 2);
 	R31 = matrix(2, 0);		R32 = matrix(2, 1);		R33 = matrix(2, 2);
 
-	double alfa = 0.0, beta = 0.0, gama = 0.0;
+	// 统一用 rx / ry / rz 命名，避免两个分支里变量语义互换造成误读
+	double rx = 0.0, ry = 0.0, rz = 0.0;
 
 	if (rotSeq == E_ROTATION_SEQUENCE::E_SEQ_XYZ)
 	{
-		beta = std::atan2(-R31, std::sqrt(R11 * R11 + R21 * R21));
+		ry = std::atan2(-R31, std::sqrt(R11 * R11 + R21 * R21));
 
-		if (std::abs(beta - M_PI / 2) < 1e-6)
+		if (std::abs(ry - M_PI / 2) < TRANSFORM_TOL::BRANCH_GIMBAL_LOCK)
 		{
-			beta = M_PI / 2;
-			alfa = 0.0;
-			gama = std::atan2(R12, R22);
+			ry = M_PI / 2;
+			rz = 0.0;
+			rx = std::atan2(R12, R22);
 		}
-		else if (std::abs(beta + M_PI / 2) < 1e-6)
+		else if (std::abs(ry + M_PI / 2) < TRANSFORM_TOL::BRANCH_GIMBAL_LOCK)
 		{
-			beta = -M_PI / 2;
-			alfa = 0.0;
-			gama = -std::atan2(R12, R22);
+			ry = -M_PI / 2;
+			rz = 0.0;
+			rx = -std::atan2(R12, R22);
 		}
 		else
 		{
-			alfa = std::atan2(R21 / std::cos(beta), R11 / std::cos(beta));
-			gama = std::atan2(R32 / std::cos(beta), R33 / std::cos(beta));
+			rz = std::atan2(R21 / std::cos(ry), R11 / std::cos(ry));
+			rx = std::atan2(R32 / std::cos(ry), R33 / std::cos(ry));
 		}
 
-		Eigen::Vector3d rotDegree = { gama, beta,alfa };
-		return rotDegree;
+		return Eigen::Vector3d(rx, ry, rz);
 	}
 	else if (rotSeq == E_ROTATION_SEQUENCE::E_SEQ_ZYX)	// 未考虑到R11、R13为0时，解存在退化的问题
 	{
-		beta = std::atan2(R13, std::sqrt(R11 * R11 + R12 * R12));
+		ry = std::atan2(R13, std::sqrt(R11 * R11 + R12 * R12));
 
-		if (std::abs(beta - M_PI / 2) < 1e-6)
+		if (std::abs(ry - M_PI / 2) < TRANSFORM_TOL::BRANCH_GIMBAL_LOCK)
 		{
-			beta = M_PI / 2;
-			alfa = 0.0;
-			gama = std::atan2(R32, R22);
+			ry = M_PI / 2;
+			rx = 0.0;
+			rz = std::atan2(R32, R22);
 		}
-		else if (std::abs(beta + M_PI / 2) < 1e-6)
+		else if (std::abs(ry + M_PI / 2) < TRANSFORM_TOL::BRANCH_GIMBAL_LOCK)
 		{
-			beta = -M_PI / 2;
-			alfa = 0.0;
-			gama = -std::atan2(R32, R22);
+			ry = -M_PI / 2;
+			rx = 0.0;
+			rz = -std::atan2(R32, R22);
 		}
 		else
 		{
-			alfa = std::atan2(-R23 / std::cos(beta), R33 / std::cos(beta));
-			gama = std::atan2(-R12 / std::cos(beta), R11 / std::cos(beta));
+			rx = std::atan2(-R23 / std::cos(ry), R33 / std::cos(ry));
+			rz = std::atan2(-R12 / std::cos(ry), R11 / std::cos(ry));
 		}
 
-		Eigen::Vector3d rotDegree = { alfa, beta, gama };
-		return rotDegree;
+		return Eigen::Vector3d(rx, ry, rz);
 	}
 	else
 	{
@@ -154,23 +153,23 @@ S_POSE CTransformation_EG::hmMatrix2Pose(const Eigen::Matrix4d& hmMatrix, const 
 {
 	Eigen::Matrix3d rotMatrix = hmMatrix.block<3, 3>(0, 0);
 
-	Eigen::Vector3d rotAnagles;
+	Eigen::Vector3d rotAngles;
 
 	if (angleType == E_ANGLE_TYPE::E_TYPE_DEGREE)
 	{
-		rotAnagles = rotMatrix2RotDegree(rotMatrix, rotSeq);
+		rotAngles = rotMatrix2RotDegree(rotMatrix, rotSeq);
 	}
 	else
 	{
-		rotAnagles = rotMatrix2RotRadian(rotMatrix, rotSeq);
+		rotAngles = rotMatrix2RotRadian(rotMatrix, rotSeq);
 	}
 
 	double x = hmMatrix(0, 3);
 	double y = hmMatrix(1, 3);
 	double z = hmMatrix(2, 3);
-	double rx = rotAnagles[0];
-	double ry = rotAnagles[1];
-	double rz = rotAnagles[2];
+	double rx = rotAngles[0];
+	double ry = rotAngles[1];
+	double rz = rotAngles[2];
 
 	return S_POSE(x, y, z, rx, ry, rz);
 }
