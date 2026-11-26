@@ -131,15 +131,31 @@ public:
 	/// 通过Rodrigues将旋转矩阵转为旋转向量
 	/// </summary>
 	/// <param name="rotMat">旋转矩阵</param>
-	/// <returns>旋转向量（弧度制）</returns>
+	/// <returns>旋转向量（弧度制）；输入非法时静默返回零向量，需要区分请使用下面的 bool 重载</returns>
 	static Eigen::Vector3d rotMatrix2RotRadian_Rodrigues(const Eigen::Matrix3d& rotMat);
+
+	/// <summary>
+	/// 通过Rodrigues将旋转矩阵转为旋转向量（可区分失败）
+	/// </summary>
+	/// <param name="rotMat">旋转矩阵（3x3，需满足正交且行列式为1）</param>
+	/// <param name="rotVec">输出旋转向量（弧度制）；失败时置为零向量</param>
+	/// <returns>成功返回true；矩阵非法返回false</returns>
+	static bool rotMatrix2RotRadian_Rodrigues(const Eigen::Matrix3d& rotMat, Eigen::Vector3d& rotVec);
 
 	/// <summary>
 	/// 通过Rodrigues将旋转矩阵转为旋转向量
 	/// </summary>
 	/// <param name="rotMat">旋转矩阵</param>
-	/// <returns>旋转向量（角度制）</returns>
+	/// <returns>旋转向量（角度制）；输入非法时静默返回零向量，需要区分请使用下面的 bool 重载</returns>
 	static Eigen::Vector3d rotMatrix2RotDegree_Rodrigues(const Eigen::Matrix3d& rotMat);
+
+	/// <summary>
+	/// 通过Rodrigues将旋转矩阵转为旋转向量（可区分失败）
+	/// </summary>
+	/// <param name="rotMat">旋转矩阵（3x3，需满足正交且行列式为1）</param>
+	/// <param name="rotVec">输出旋转向量（角度制）；失败时置为零向量</param>
+	/// <returns>成功返回true；矩阵非法返回false</returns>
+	static bool rotMatrix2RotDegree_Rodrigues(const Eigen::Matrix3d& rotMat, Eigen::Vector3d& rotVec);
 
 	/// <summary>
 	/// 位姿转为齐次矩阵 旋转矩阵部分用Rodrigues实现
