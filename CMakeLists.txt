@@ -64,7 +64,13 @@ endfunction()
 # ===========================================================================
 # 子目录
 # ===========================================================================
-include(CTest)			# 提供 BUILD_TESTING 选项并 enable_testing()
+# 只开 enable_testing()，不用 include(CTest)：
+# 后者会额外引入 Continuous / Experimental / Nightly / NightlyMemoryCheck 四个
+# CDash 上报目标，本项目没有 CDash 服务器，留着它们只是解决方案里的噪音。
+option(BUILD_TESTING "构建并注册回归测试" ON)
+if(BUILD_TESTING)
+	enable_testing()
+endif()
 
 add_subdirectory(src)	# 位姿变换核心库
 add_subdirectory(demo)	# 使用示例

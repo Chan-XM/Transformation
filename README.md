@@ -55,7 +55,7 @@ ctest --preset debug              # 运行回归测试；换成 --preset release
 | `OpenCV_DIR` | `E:/installed/OpenCV/opencv_4.7.0_vc16/build` | OpenCV 的 build 目录（内含 `OpenCVConfig.cmake`） |
 | `OpenCV_RUNTIME` / `OpenCV_ARCH` | `vc16` / `x64` | 显式指定预编译包标签，绕开 OpenCVConfig 按 MSVC 版本反推 |
 | `TRANSFORMATION_COPY_OPENCV_DLL` | `ON` | 是否把 OpenCV dll 复制到可执行文件目录 |
-| `BUILD_TESTING` | `ON` | 是否构建测试工程（由 CTest 模块提供） |
+| `BUILD_TESTING` | `ON` | 是否构建测试工程并注册到 CTest |
 
 > `OpenCV_RUNTIME` 之所以要显式指定：本机预编译包由 VS2019(vc16) 构建，而默认工具集版本更新，
 > OpenCV 的 `OpenCVConfig.cmake` 会按 MSVC 版本反推目录名并判定为「找不到 OpenCV」。
