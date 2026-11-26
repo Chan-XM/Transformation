@@ -421,3 +421,96 @@ bool CTransformation_EG::isValidHmMatrix(const Eigen::Matrix4d& hmMatrix)
 	return isValidRotationMatrix(hmMatrix.block<3, 3>(0, 0));
 }
 
+// ---------------------------------------------------------------------------
+// 齐次矩阵求逆 / 位姿求逆
+// ---------------------------------------------------------------------------
+bool CTransformation_EG::invHmMatrix(const Eigen::Matrix4d& hmMatrix, Eigen::Matrix4d& invMatrix)
+{
+	invMatrix = Eigen::Matrix4d::Identity();
+
+	if (!isValidHmMatrix(hmMatrix))
+	{
+		return false;
+	}
+
+	// 刚体变换的逆有解析解：R^-1 = R^T，t^-1 = -R^T * t
+	// 相比通用矩阵求逆更快，也不会因条件数恶化而失真
+	const Eigen::Matrix3d rotTranspose = hmMatrix.block<3, 3>(0, 0).transpose();
+	invMatrix.block<3, 3>(0, 0) = rotTranspose;
+	invMatrix.block<3, 1>(0, 3) = -rotTranspose * hmMatrix.block<3, 1>(0, 3);
+
+	return true;
+}
+
+bool CTransformation_EG::invPose(const S_POSE& pose, S_POSE& outPose, const E_ROTATION_SEQUENCE& rotSeq, const E_ANGLE_TYPE& angleType)
+{
+	outPose = S_POSE();
+
+	Eigen::Matrix4d invMatrix;
+	if (!invHmMatrix(pose2HmMatrix(pose, rotSeq, angleType), invMatrix))
+	{
+		return false;
+	}
+
+	return hmMatrix2Pose(invMatrix, outPose, rotSeq, angleType);
+}
+
+// ---------------------------------------------------------------------------
+// 齐次矩阵复合 / 位姿复合
+// ---------------------------------------------------------------------------
+bool CTransformation_EG::composeHmMatrix(const Eigen::Matrix4d& a, const Eigen::Matrix4d& b, Eigen::Matrix4d& outMatrix)
+{
+	outMatrix = Eigen::Matrix4d::Identity();
+
+	if (!isValidHmMatrix(a) || !isValidHmMatrix(b))
+	{
+		return false;
+	}
+
+	outMatrix = a * b;
+	return true;
+}
+
+bool CTransformation_EG::composePose(const S_POSE& a, const S_POSE& b, S_POSE& outPose, const E_ROTATION_SEQUENCE& rotSeq, const E_ANGLE_TYPE& angleType)
+{
+	outPose = S_POSE();
+
+	Eigen::Matrix4d composedMatrix;
+	if (!composeHmMatrix(pose2HmMatrix(a, rotSeq, angleType), pose2HmMatrix(b, rotSeq, angleType), composedMatrix))
+	{
+		return false;
+	}
+
+	return hmMatrix2Pose(composedMatrix, outPose, rotSeq, angleType);
+}
+
+// ---------------------------------------------------------------------------
+// 位姿插值
+// ---------------------------------------------------------------------------
+bool CTransformation_EG::interpolatePose(const S_POSE& from, const S_POSE& to, double t, S_POSE& outPose, const E_ROTATION_SEQUENCE& rotSeq, const E_ANGLE_TYPE& angleType)
+{
+	outPose = S_POSE();
+
+	const Eigen::Matrix3d fromRot = (angleType == E_ANGLE_TYPE::E_TYPE_DEGREE)
+		? rotDegree2Matrix(from.Rx, from.Ry, from.Rz, rotSeq)
+		: rotRadian2Matrix(from.Rx, from.Ry, from.Rz, rotSeq);
+	const Eigen::Matrix3d toRot = (angleType == E_ANGLE_TYPE::E_TYPE_DEGREE)
+		? rotDegree2Matrix(to.Rx, to.Ry, to.Rz, rotSeq)
+		: rotRadian2Matrix(to.Rx, to.Ry, to.Rz, rotSeq);
+
+	// 旋转沿测地线插值：相对旋转 R_from^T * R_to 的轴角表示保证转角落在 [0, pi]，
+	// 因此 t 在 [0,1] 内走最短路径；t 超出 [0,1] 时自然退化为外插。
+	// 注意：相对转角恰为 pi 时轴向符号本身不唯一，插值路径由 Eigen 的轴角实现决定。
+	const Eigen::AngleAxisd relRot(fromRot.transpose() * toRot);
+	const Eigen::Matrix3d rotMatrix = fromRot * Eigen::AngleAxisd(t * relRot.angle(), relRot.axis()).toRotationMatrix();
+
+	// 平移按线性插值
+	const Eigen::Vector3d position = (1.0 - t) * Eigen::Vector3d(from.X, from.Y, from.Z)
+		+ t * Eigen::Vector3d(to.X, to.Y, to.Z);
+
+	Eigen::Matrix4d hmMatrix = Eigen::Matrix4d::Identity();
+	hmMatrix.block<3, 3>(0, 0) = rotMatrix;
+	hmMatrix.block<3, 1>(0, 3) = position;
+
+	return hmMatrix2Pose(hmMatrix, outPose, rotSeq, angleType);
+}

@@ -207,6 +207,62 @@ public:
 		const E_ROTATION_SEQUENCE& rotSeq = E_ROTATION_SEQUENCE::E_SEQ_XYZ,
 		const E_ANGLE_TYPE& angleType = E_ANGLE_TYPE::E_TYPE_DEGREE);
 
+	/// <summary>
+	/// 齐次矩阵求逆（刚体变换解析解：R^-1 = R^T，t^-1 = -R^T * t）
+	/// </summary>
+	/// <param name="hmMatrix">齐次矩阵（4x4）</param>
+	/// <param name="invMatrix">输出逆矩阵（4x4）；失败时置为单位阵</param>
+	/// <returns>成功返回true；矩阵非法返回false</returns>
+	static bool invHmMatrix(const cv::Mat& hmMatrix, cv::Mat& invMatrix);
+
+	/// <summary>
+	/// 位姿求逆
+	/// </summary>
+	/// <param name="pose">输入位姿</param>
+	/// <param name="outPose">输出逆位姿；失败时各分量置零</param>
+	/// <param name="rotSeq">旋转角顺序</param>
+	/// <param name="angleType">角度单位</param>
+	/// <returns>成功返回true</returns>
+	static bool invPose(const S_POSE& pose, S_POSE& outPose,
+		const E_ROTATION_SEQUENCE& rotSeq = E_ROTATION_SEQUENCE::E_SEQ_XYZ,
+		const E_ANGLE_TYPE& angleType = E_ANGLE_TYPE::E_TYPE_DEGREE);
+
+	/// <summary>
+	/// 齐次矩阵复合：outMatrix = a * b（先作用b，再作用a）
+	/// </summary>
+	/// <param name="a">左乘矩阵（4x4）</param>
+	/// <param name="b">右乘矩阵（4x4）</param>
+	/// <param name="outMatrix">输出复合矩阵（4x4）；失败时置为单位阵</param>
+	/// <returns>成功返回true；任一矩阵非法返回false</returns>
+	static bool composeHmMatrix(const cv::Mat& a, const cv::Mat& b, cv::Mat& outMatrix);
+
+	/// <summary>
+	/// 位姿复合：outPose = a * b（先作用b，再作用a）
+	/// </summary>
+	/// <param name="a">左乘位姿</param>
+	/// <param name="b">右乘位姿</param>
+	/// <param name="outPose">输出复合位姿；失败时各分量置零</param>
+	/// <param name="rotSeq">旋转角顺序</param>
+	/// <param name="angleType">角度单位</param>
+	/// <returns>成功返回true</returns>
+	static bool composePose(const S_POSE& a, const S_POSE& b, S_POSE& outPose,
+		const E_ROTATION_SEQUENCE& rotSeq = E_ROTATION_SEQUENCE::E_SEQ_XYZ,
+		const E_ANGLE_TYPE& angleType = E_ANGLE_TYPE::E_TYPE_DEGREE);
+
+	/// <summary>
+	/// 位姿插值：旋转沿测地线（最短路径）插值，平移按线性插值
+	/// </summary>
+	/// <param name="from">起始位姿（t=0）</param>
+	/// <param name="to">目标位姿（t=1）</param>
+	/// <param name="t">插值参数，允许超出[0,1]表示外插</param>
+	/// <param name="outPose">输出位姿；失败时各分量置零</param>
+	/// <param name="rotSeq">旋转角顺序</param>
+	/// <param name="angleType">角度单位</param>
+	/// <returns>成功返回true</returns>
+	static bool interpolatePose(const S_POSE& from, const S_POSE& to, double t, S_POSE& outPose,
+		const E_ROTATION_SEQUENCE& rotSeq = E_ROTATION_SEQUENCE::E_SEQ_XYZ,
+		const E_ANGLE_TYPE& angleType = E_ANGLE_TYPE::E_TYPE_DEGREE);
+
 private:
 	/// <summary>
 	/// 校验3x3旋转矩阵的形状/通道/深度，并统一转为CV_64F

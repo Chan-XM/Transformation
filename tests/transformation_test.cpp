@@ -708,6 +708,226 @@ static void test_near_pi_axis_sign()
 	CHECK(mismatch == 0);
 }
 
+// 便于把 Eigen 矩阵与 cv::Mat 做对比
+static cv::Mat eigenToCvMat4(const Eigen::Matrix4d& matrix)
+{
+	cv::Mat out(4, 4, CV_64F);
+	for (int r = 0; r < 4; ++r)
+	{
+		for (int c = 0; c < 4; ++c)
+		{
+			out.at<double>(r, c) = matrix(r, c);
+		}
+	}
+	return out;
+}
+
+static double maxAbsDiff(const S_POSE& a, const S_POSE& b)
+{
+	return std::max(std::max(std::max(std::abs(a.X - b.X), std::abs(a.Y - b.Y)), std::abs(a.Z - b.Z)),
+		std::max(std::max(std::abs(a.Rx - b.Rx), std::abs(a.Ry - b.Ry)), std::abs(a.Rz - b.Rz)));
+}
+
+// ===========================================================================
+// C1：齐次矩阵求逆 / 位姿求逆
+// ===========================================================================
+static void test_inverse()
+{
+	section("EG/CV: 齐次矩阵求逆与位姿求逆");
+
+	double maxErr = 0.0;
+	for (int i = 0; i < 500; ++i)
+	{
+		const S_POSE pose(uniform(-1000.0, 1000.0), uniform(-1000.0, 1000.0), uniform(-1000.0, 1000.0),
+			uniform(-180.0, 180.0), uniform(-80.0, 80.0), uniform(-180.0, 180.0));
+
+		const Eigen::Matrix4d egMatrix = CTransformation_EG::pose2HmMatrix(pose);
+
+		Eigen::Matrix4d egInv;
+		CHECK(CTransformation_EG::invHmMatrix(egMatrix, egInv));
+		maxErr = std::max(maxErr, (egInv * egMatrix - Eigen::Matrix4d::Identity()).norm());
+		maxErr = std::max(maxErr, (egInv - egMatrix.inverse()).norm());
+
+		// 位姿级求逆应与矩阵级一致
+		S_POSE egInvPose;
+		CHECK(CTransformation_EG::invPose(pose, egInvPose));
+		maxErr = std::max(maxErr, (CTransformation_EG::pose2HmMatrix(egInvPose) - egInv).norm());
+
+		// 逆两次回到原位姿
+		S_POSE backPose;
+		CHECK(CTransformation_EG::invPose(egInvPose, backPose));
+		maxErr = std::max(maxErr, maxAbsDiff(backPose, pose));
+
+		// OpenCV 侧
+		const cv::Mat cvMatrix = CTransformation_CV::pose2HmMatrix(pose);
+		cv::Mat cvInv;
+		CHECK(CTransformation_CV::invHmMatrix(cvMatrix, cvInv));
+		maxErr = std::max(maxErr, cv::norm(cvInv * cvMatrix - cv::Mat::eye(4, 4, CV_64F)));
+		maxErr = std::max(maxErr, cv::norm(cvInv - eigenToCvMat4(egInv)));
+
+		S_POSE cvInvPose;
+		CHECK(CTransformation_CV::invPose(pose, cvInvPose));
+		maxErr = std::max(maxErr, maxAbsDiff(cvInvPose, egInvPose));
+	}
+
+	info("最大误差", maxErr);
+	CHECK(maxErr < 1e-8);
+
+	// 非法矩阵应被拒绝，且输出置为单位阵
+	Eigen::Matrix4d badEg = Eigen::Matrix4d::Identity();
+	badEg(3, 3) = 2.0;
+	Eigen::Matrix4d outEg;
+	CHECK(!CTransformation_EG::invHmMatrix(badEg, outEg));
+	CHECK((outEg - Eigen::Matrix4d::Identity()).norm() == 0.0);
+
+	cv::Mat badCv = cv::Mat::eye(4, 4, CV_64F);
+	badCv.at<double>(3, 3) = 2.0;
+	cv::Mat outCv;
+	CHECK(!CTransformation_CV::invHmMatrix(badCv, outCv));
+	CHECK(cv::norm(outCv - cv::Mat::eye(4, 4, CV_64F)) == 0.0);
+}
+
+// ===========================================================================
+// C2：齐次矩阵复合 / 位姿复合
+// ===========================================================================
+static void test_compose()
+{
+	section("EG/CV: 齐次矩阵复合与位姿复合");
+
+	double maxErr = 0.0;
+	for (int i = 0; i < 300; ++i)
+	{
+		const S_POSE a(uniform(-1000.0, 1000.0), uniform(-1000.0, 1000.0), uniform(-1000.0, 1000.0),
+			uniform(-180.0, 180.0), uniform(-80.0, 80.0), uniform(-180.0, 180.0));
+		const S_POSE b(uniform(-1000.0, 1000.0), uniform(-1000.0, 1000.0), uniform(-1000.0, 1000.0),
+			uniform(-180.0, 180.0), uniform(-80.0, 80.0), uniform(-180.0, 180.0));
+
+		const Eigen::Matrix4d egA = CTransformation_EG::pose2HmMatrix(a);
+		const Eigen::Matrix4d egB = CTransformation_EG::pose2HmMatrix(b);
+
+		Eigen::Matrix4d egComposed;
+		CHECK(CTransformation_EG::composeHmMatrix(egA, egB, egComposed));
+		maxErr = std::max(maxErr, (egComposed - egA * egB).norm());
+
+		// 位姿级复合应与矩阵级复合一致
+		S_POSE egComposedPose;
+		CHECK(CTransformation_EG::composePose(a, b, egComposedPose));
+		maxErr = std::max(maxErr, (CTransformation_EG::pose2HmMatrix(egComposedPose) - egComposed).norm());
+
+		// a * a^-1 = I
+		S_POSE aInv;
+		CHECK(CTransformation_EG::invPose(a, aInv));
+		S_POSE identityPose;
+		CHECK(CTransformation_EG::composePose(a, aInv, identityPose));
+		maxErr = std::max(maxErr, (CTransformation_EG::pose2HmMatrix(identityPose) - Eigen::Matrix4d::Identity()).norm());
+
+		// OpenCV 侧
+		const cv::Mat cvA = CTransformation_CV::pose2HmMatrix(a);
+		const cv::Mat cvB = CTransformation_CV::pose2HmMatrix(b);
+		cv::Mat cvComposed;
+		CHECK(CTransformation_CV::composeHmMatrix(cvA, cvB, cvComposed));
+		maxErr = std::max(maxErr, cv::norm(cvComposed - eigenToCvMat4(egComposed)));
+
+		S_POSE cvComposedPose;
+		CHECK(CTransformation_CV::composePose(a, b, cvComposedPose));
+		maxErr = std::max(maxErr, maxAbsDiff(cvComposedPose, egComposedPose));
+	}
+
+	info("最大误差", maxErr);
+	CHECK(maxErr < 1e-8);
+
+	// 非法输入
+	Eigen::Matrix4d badEg = Eigen::Matrix4d::Identity();
+	badEg(3, 0) = 5.0;
+	Eigen::Matrix4d outEg;
+	CHECK(!CTransformation_EG::composeHmMatrix(badEg, Eigen::Matrix4d::Identity(), outEg));
+	CHECK((outEg - Eigen::Matrix4d::Identity()).norm() == 0.0);
+
+	cv::Mat badCv = cv::Mat::eye(4, 4, CV_64F);
+	badCv.at<double>(3, 0) = 5.0;
+	cv::Mat outCv;
+	CHECK(!CTransformation_CV::composeHmMatrix(badCv, cv::Mat::eye(4, 4, CV_64F), outCv));
+}
+
+// ===========================================================================
+// C3：位姿插值
+// ===========================================================================
+static void test_interpolate()
+{
+	section("EG/CV: 位姿插值");
+
+	const S_POSE from(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+	const S_POSE to(100.0, 200.0, 300.0, 0.0, 0.0, 90.0);
+
+	S_POSE out;
+	CHECK(CTransformation_EG::interpolatePose(from, to, 0.0, out));
+	CHECK(maxAbsDiff(out, from) < 1e-9);
+
+	CHECK(CTransformation_EG::interpolatePose(from, to, 1.0, out));
+	CHECK(maxAbsDiff(out, to) < 1e-9);
+
+	// 中点：平移取中值，旋转取 45 度
+	CHECK(CTransformation_EG::interpolatePose(from, to, 0.5, out));
+	CHECK(std::abs(out.X - 50.0) < 1e-9);
+	CHECK(std::abs(out.Y - 100.0) < 1e-9);
+	CHECK(std::abs(out.Z - 150.0) < 1e-9);
+	CHECK(std::abs(out.Rz - 45.0) < 1e-9);
+
+	// 外插：t=2 应等于相对旋转叠加两次（旋转 180 度时欧拉角 ±180 等价，故用矩阵比较）
+	CHECK(CTransformation_EG::interpolatePose(from, to, 2.0, out));
+	const Eigen::Matrix3d expectedTwice = CTransformation_EG::rotDegree2Matrix(0.0, 0.0, 180.0);
+	CHECK((CTransformation_EG::pose2HmMatrix(out).block<3, 3>(0, 0) - expectedTwice).norm() < 1e-9);
+	CHECK(std::abs(out.X - 200.0) < 1e-9);
+
+	// 随机一致性：与"相对旋转按比例缩放"的定义吻合，且 EG 与 CV 结果一致
+	double maxRotErr = 0.0;
+	double maxPosErr = 0.0;
+	double maxCrossErr = 0.0;
+	int skipped = 0;
+
+	for (int i = 0; i < 300; ++i)
+	{
+		const S_POSE a(uniform(-1000.0, 1000.0), uniform(-1000.0, 1000.0), uniform(-1000.0, 1000.0),
+			uniform(-180.0, 180.0), uniform(-80.0, 80.0), uniform(-180.0, 180.0));
+		const S_POSE b(uniform(-1000.0, 1000.0), uniform(-1000.0, 1000.0), uniform(-1000.0, 1000.0),
+			uniform(-180.0, 180.0), uniform(-80.0, 80.0), uniform(-180.0, 180.0));
+		const double t = uniform(0.0, 1.0);
+
+		const Eigen::Matrix4d aMatrix = CTransformation_EG::pose2HmMatrix(a);
+		const Eigen::Matrix4d bMatrix = CTransformation_EG::pose2HmMatrix(b);
+
+		// 相对旋转恰为 pi 时轴向符号本身不唯一，两套实现的插值路径可能不同，跳过
+		const Eigen::AngleAxisd relRot(aMatrix.block<3, 3>(0, 0).transpose() * bMatrix.block<3, 3>(0, 0));
+		if (std::abs(relRot.angle() - M_PI) < 1e-4)
+		{
+			++skipped;
+			continue;
+		}
+
+		const Eigen::Matrix3d expectedRot = aMatrix.block<3, 3>(0, 0)
+			* Eigen::AngleAxisd(t * relRot.angle(), relRot.axis()).toRotationMatrix();
+		const Eigen::Vector3d expectedPos = (1.0 - t) * aMatrix.block<3, 1>(0, 3) + t * bMatrix.block<3, 1>(0, 3);
+
+		S_POSE egOut;
+		CHECK(CTransformation_EG::interpolatePose(a, b, t, egOut));
+
+		const Eigen::Matrix4d egMatrix = CTransformation_EG::pose2HmMatrix(egOut);
+		maxRotErr = std::max(maxRotErr, (egMatrix.block<3, 3>(0, 0) - expectedRot).norm());
+		maxPosErr = std::max(maxPosErr, (egMatrix.block<3, 1>(0, 3) - expectedPos).norm());
+
+		S_POSE cvOut;
+		CHECK(CTransformation_CV::interpolatePose(a, b, t, cvOut));
+		maxCrossErr = std::max(maxCrossErr, maxAbsDiff(cvOut, egOut));
+	}
+
+	info("相对期望旋转最大误差", maxRotErr);
+	info("相对期望平移最大误差", maxPosErr);
+	info("EG 与 CV 最大差异", maxCrossErr);
+	CHECK(maxRotErr < 1e-8);
+	CHECK(maxPosErr < 1e-8);
+	CHECK(maxCrossErr < 1e-6);
+	CHECK(skipped <= 3);
+}
 // ===========================================================================
 int main()
 {
@@ -740,6 +960,9 @@ int main()
 	test_euler_validation();
 	test_hm_matrix_validation();
 	test_near_pi_axis_sign();
+	test_inverse();
+	test_compose();
+	test_interpolate();
 
 	std::cout << std::endl << "================ 测试结果 ================" << std::endl;
 	std::cout << "  用例总数: " << g_checked << std::endl;

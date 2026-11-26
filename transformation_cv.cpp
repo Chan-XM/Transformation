@@ -464,3 +464,126 @@ void CTransformation_CV::canonicalizeNearPiAxis(cv::Vec3d& rotVec)
     }
 }
 
+// ---------------------------------------------------------------------------
+// 齐次矩阵求逆 / 位姿求逆
+// ---------------------------------------------------------------------------
+bool CTransformation_CV::invHmMatrix(const cv::Mat& hmMatrix, cv::Mat& invMatrix)
+{
+    invMatrix = cv::Mat::eye(4, 4, CV_64F);
+
+    cv::Mat hmMatrix64;
+    if (!toHmMatrix64(hmMatrix, hmMatrix64))
+    {
+        return false;
+    }
+
+    if (!isValidHmMatrix64(hmMatrix64))
+    {
+        return false;
+    }
+
+    // 刚体变换的逆有解析解：R^-1 = R^T，t^-1 = -R^T * t
+    const cv::Mat rotMatrix64 = hmMatrix64(cv::Rect(0, 0, 3, 3)).clone();
+    const cv::Mat rotTranspose = rotMatrix64.t();
+    rotTranspose.copyTo(invMatrix(cv::Rect(0, 0, 3, 3)));
+
+    const cv::Mat translation = hmMatrix64(cv::Rect(3, 0, 1, 3)).clone();
+    const cv::Mat invTranslation = -rotTranspose * translation;
+    invTranslation.copyTo(invMatrix(cv::Rect(3, 0, 1, 3)));
+
+    return true;
+}
+
+bool CTransformation_CV::invPose(const S_POSE& pose, S_POSE& outPose, const E_ROTATION_SEQUENCE& rotSeq, const E_ANGLE_TYPE& angleType)
+{
+    outPose = S_POSE();
+
+    cv::Mat invMatrix;
+    if (!invHmMatrix(pose2HmMatrix(pose, rotSeq, angleType), invMatrix))
+    {
+        return false;
+    }
+
+    return hmMatrix2Pose(invMatrix, outPose, rotSeq, angleType);
+}
+
+// ---------------------------------------------------------------------------
+// 齐次矩阵复合 / 位姿复合
+// ---------------------------------------------------------------------------
+bool CTransformation_CV::composeHmMatrix(const cv::Mat& a, const cv::Mat& b, cv::Mat& outMatrix)
+{
+    outMatrix = cv::Mat::eye(4, 4, CV_64F);
+
+    cv::Mat a64;
+    if (!toHmMatrix64(a, a64))
+    {
+        return false;
+    }
+
+    cv::Mat b64;
+    if (!toHmMatrix64(b, b64))
+    {
+        return false;
+    }
+
+    if (!isValidHmMatrix64(a64) || !isValidHmMatrix64(b64))
+    {
+        return false;
+    }
+
+    outMatrix = a64 * b64;
+    return true;
+}
+
+bool CTransformation_CV::composePose(const S_POSE& a, const S_POSE& b, S_POSE& outPose, const E_ROTATION_SEQUENCE& rotSeq, const E_ANGLE_TYPE& angleType)
+{
+    outPose = S_POSE();
+
+    cv::Mat composedMatrix;
+    if (!composeHmMatrix(pose2HmMatrix(a, rotSeq, angleType), pose2HmMatrix(b, rotSeq, angleType), composedMatrix))
+    {
+        return false;
+    }
+
+    return hmMatrix2Pose(composedMatrix, outPose, rotSeq, angleType);
+}
+
+// ---------------------------------------------------------------------------
+// 位姿插值
+// ---------------------------------------------------------------------------
+bool CTransformation_CV::interpolatePose(const S_POSE& from, const S_POSE& to, double t, S_POSE& outPose, const E_ROTATION_SEQUENCE& rotSeq, const E_ANGLE_TYPE& angleType)
+{
+    outPose = S_POSE();
+
+    const bool isDegree = (angleType == E_ANGLE_TYPE::E_TYPE_DEGREE);
+    const cv::Mat fromRot = isDegree
+        ? rotDegree2Matrix(from.Rx, from.Ry, from.Rz, rotSeq)
+        : rotRadian2Matrix(from.Rx, from.Ry, from.Rz, rotSeq);
+    const cv::Mat toRot = isDegree
+        ? rotDegree2Matrix(to.Rx, to.Ry, to.Rz, rotSeq)
+        : rotRadian2Matrix(to.Rx, to.Ry, to.Rz, rotSeq);
+
+    // 旋转沿测地线插值：先用 Rodrigues 求出相对旋转的轴角（模长即相对转角，
+    // 且必落在 [0, pi]），再按比例缩放该旋转向量，因此 t 在 [0,1] 内走最短路径，
+    // 超出 [0,1] 时自然退化为外插。
+    // 注意：相对转角恰为 pi 时轴向符号本身不唯一，插值路径由 cv::Rodrigues 的实现决定。
+    const cv::Mat relRotMatrix = fromRot.t() * toRot;
+
+    cv::Mat relRotVec;
+    cv::Rodrigues(relRotMatrix, relRotVec);
+
+    cv::Mat stepRotVec = t * relRotVec;
+    cv::Mat stepRotMatrix;
+    cv::Rodrigues(stepRotVec, stepRotMatrix);
+
+    const cv::Mat rotMatrix = fromRot * stepRotMatrix;
+
+    // 平移按线性插值
+    cv::Mat hmMatrix = cv::Mat::eye(4, 4, CV_64F);
+    rotMatrix.copyTo(hmMatrix(cv::Rect(0, 0, 3, 3)));
+    hmMatrix.at<double>(0, 3) = (1.0 - t) * from.X + t * to.X;
+    hmMatrix.at<double>(1, 3) = (1.0 - t) * from.Y + t * to.Y;
+    hmMatrix.at<double>(2, 3) = (1.0 - t) * from.Z + t * to.Z;
+
+    return hmMatrix2Pose(hmMatrix, outPose, rotSeq, angleType);
+}
