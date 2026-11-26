@@ -63,56 +63,52 @@ cv::Vec3d CTransformation_CV::rotMatrix2RotDegree(const cv::Mat& matrix, const E
     return rotMatrix2RotRadian(matrix, rotSeq) * 180 / M_PI;
 }
 
+bool CTransformation_CV::rotMatrix2RotDegree(const cv::Mat& matrix, const E_ROTATION_SEQUENCE& rotSeq, cv::Vec3d& rotVec)
+{
+    if (!rotMatrix2RotRadian(matrix, rotSeq, rotVec))
+    {
+        return false;
+    }
+
+    rotVec = rotVec * 180 / M_PI;
+    return true;
+}
+
 cv::Vec3d CTransformation_CV::rotMatrix2RotRadian(const cv::Mat& matrix, const E_ROTATION_SEQUENCE& rotSeq)
 {
-    if (matrix.cols != 3 || matrix.rows != 3)
+    cv::Vec3d rotVec(0.0, 0.0, 0.0);
+
+    // 失败时保持返回零向量；需要区分「输入非法」与「零旋转」请使用返回 bool 的重载
+    rotMatrix2RotRadian(matrix, rotSeq, rotVec);
+
+    return rotVec;
+}
+
+bool CTransformation_CV::rotMatrix2RotRadian(const cv::Mat& matrix, const E_ROTATION_SEQUENCE& rotSeq, cv::Vec3d& rotVec)
+{
+    rotVec = cv::Vec3d(0.0, 0.0, 0.0);
+
+    cv::Mat matrix64;
+    if (!toRotMatrix64(matrix, matrix64))
     {
-        std::cerr << "rotMatrix2RotRadian() matrix != 3x3" << std::endl;
-        return cv::Vec3d();
+        return false;
     }
 
-    if (matrix.channels() != 1)
+    // 欧拉角反解隐含「输入是纯旋转矩阵」这一前提：含缩放或镜像的矩阵会解出无意义的角度
+    if (!isValidRotationMatrix64(matrix64))
     {
-        std::cerr << "rotMatrix2RotRadian() matrix channels != 1" << std::endl;
-        return cv::Vec3d();
+        return false;
     }
 
-    double R11, R12, R13, R21, R22, R23, R31, R32, R33;
-
-    switch (CV_MAT_DEPTH(matrix.type()))
-    {
-    case CV_32F:
-    {
-        R11 = matrix.at<float>(0, 0);
-        R12 = matrix.at<float>(0, 1);
-        R13 = matrix.at<float>(0, 2);
-        R21 = matrix.at<float>(1, 0);
-        R22 = matrix.at<float>(1, 1);
-        R23 = matrix.at<float>(1, 2);
-        R31 = matrix.at<float>(2, 0);
-        R32 = matrix.at<float>(2, 1);
-        R33 = matrix.at<float>(2, 2);
-        break;
-    }
-    case CV_64F:
-    {
-        R11 = matrix.at<double>(0, 0);
-        R12 = matrix.at<double>(0, 1);
-        R13 = matrix.at<double>(0, 2);
-        R21 = matrix.at<double>(1, 0);
-        R22 = matrix.at<double>(1, 1);
-        R23 = matrix.at<double>(1, 2);
-        R31 = matrix.at<double>(2, 0);
-        R32 = matrix.at<double>(2, 1);
-        R33 = matrix.at<double>(2, 2);
-        break;
-    }
-    default:
-    {
-        std::cerr << "rotMatrix2RotRadian() matrix type != float/double" << std::endl;
-        return cv::Vec3d();
-    }
-    }
+    const double R11 = matrix64.at<double>(0, 0);
+    const double R12 = matrix64.at<double>(0, 1);
+    const double R13 = matrix64.at<double>(0, 2);
+    const double R21 = matrix64.at<double>(1, 0);
+    const double R22 = matrix64.at<double>(1, 1);
+    const double R23 = matrix64.at<double>(1, 2);
+    const double R31 = matrix64.at<double>(2, 0);
+    const double R32 = matrix64.at<double>(2, 1);
+    const double R33 = matrix64.at<double>(2, 2);
 
     // 统一用 rx / ry / rz 命名，避免两个分支里变量语义互换造成误读
     double rx = 0.0, ry = 0.0, rz = 0.0;
@@ -139,7 +135,8 @@ cv::Vec3d CTransformation_CV::rotMatrix2RotRadian(const cv::Mat& matrix, const E
             rx = std::atan2(R32 / std::cos(ry), R33 / std::cos(ry));
         }
 
-        return cv::Vec3d(rx, ry, rz);
+        rotVec = cv::Vec3d(rx, ry, rz);
+        return true;
     }
     else if (rotSeq == E_ROTATION_SEQUENCE::E_SEQ_ZYX)	// 未考虑到R11、R13为0时，解存在退化的问题
     {
@@ -163,12 +160,12 @@ cv::Vec3d CTransformation_CV::rotMatrix2RotRadian(const cv::Mat& matrix, const E
             rz = std::atan2(-R12 / std::cos(ry), R11 / std::cos(ry));
         }
 
-        return cv::Vec3d(rx, ry, rz);
+        rotVec = cv::Vec3d(rx, ry, rz);
+        return true;
     }
-    else
-    {
-        return cv::Vec3d();
-    }
+
+    // 旋转顺序非法（正常不会到达）
+    return false;
 }
 
 cv::Mat CTransformation_CV::pose2HmMatrix(double x, double y, double z, double rx, double ry, double rz, const E_ROTATION_SEQUENCE& rotSeq, const E_ANGLE_TYPE& angleType)
@@ -202,59 +199,48 @@ cv::Mat CTransformation_CV::pose2HmMatrix(const S_POSE& pose, const E_ROTATION_S
 
 S_POSE CTransformation_CV::hmMatrix2Pose(const cv::Mat& hmMatrix, const E_ROTATION_SEQUENCE& rotSeq, const E_ANGLE_TYPE& angleType)
 {
-    double x = 0.0, y = 0.0, z = 0.0, rx = 0.0, ry = 0.0, rz = 0.0;
+    S_POSE pose;
 
-    if (hmMatrix.cols != 4 || hmMatrix.rows != 4)
+    // 失败时返回各分量均为零的位姿；需要区分「矩阵非法」与「零位姿」请使用返回 bool 的重载
+    hmMatrix2Pose(hmMatrix, pose, rotSeq, angleType);
+
+    return pose;
+}
+
+bool CTransformation_CV::hmMatrix2Pose(const cv::Mat& hmMatrix, S_POSE& pose, const E_ROTATION_SEQUENCE& rotSeq, const E_ANGLE_TYPE& angleType)
+{
+    pose = S_POSE();
+
+    cv::Mat hmMatrix64;
+    if (!toHmMatrix64(hmMatrix, hmMatrix64))
     {
-        std::cerr << "hmMatrix2Pose() hmMatrix != 4x4" << std::endl;
-        return S_POSE(x, y, z, rx, ry, rz);
+        return false;
     }
 
-    if (hmMatrix.channels() != 1)
+    if (!isValidHmMatrix64(hmMatrix64))
     {
-        std::cerr << "hmMatrix2Pose() hmMatrix channels != 1" << std::endl;
-        return S_POSE(x, y, z, rx, ry, rz);
+        return false;
     }
 
-    cv::Mat rotMatrix = hmMatrix(cv::Range(0, 3), cv::Range(0, 3));
+    const cv::Mat rotMatrix64 = hmMatrix64(cv::Rect(0, 0, 3, 3)).clone();
 
-    cv::Vec3d angles;
-
-    if (angleType == E_ANGLE_TYPE::E_TYPE_DEGREE)
+    cv::Vec3d rotAngles;
+    const bool ok = (angleType == E_ANGLE_TYPE::E_TYPE_DEGREE)
+        ? rotMatrix2RotDegree(rotMatrix64, rotSeq, rotAngles)
+        : rotMatrix2RotRadian(rotMatrix64, rotSeq, rotAngles);
+    if (!ok)
     {
-        angles = rotMatrix2RotDegree(rotMatrix, rotSeq);
-    }
-    else
-    {
-        angles = rotMatrix2RotRadian(rotMatrix, rotSeq);
+        return false;
     }
 
-    rx = angles[0];     ry = angles[1];     rz = angles[2];
+    pose.X = hmMatrix64.at<double>(0, 3);
+    pose.Y = hmMatrix64.at<double>(1, 3);
+    pose.Z = hmMatrix64.at<double>(2, 3);
+    pose.Rx = rotAngles[0];
+    pose.Ry = rotAngles[1];
+    pose.Rz = rotAngles[2];
 
-    switch (CV_MAT_DEPTH(hmMatrix.type()))
-    {
-    case CV_32F:
-    {
-        x = hmMatrix.at<float>(0, 3);
-        y = hmMatrix.at<float>(1, 3);
-        z = hmMatrix.at<float>(2, 3);
-        break;
-    }
-    case CV_64F:
-    {
-        x = hmMatrix.at<double>(0, 3);
-        y = hmMatrix.at<double>(1, 3);
-        z = hmMatrix.at<double>(2, 3);
-        break;
-    }
-    default:
-    {
-        std::cerr << "hmMatrix2Pose() matrix type != float/double" << std::endl;
-        return S_POSE(x, y, z, rx, ry, rz);
-    }
-    }
-
-    return S_POSE(x, y, z, rx, ry, rz);
+    return true;
 }
 
 cv::Mat CTransformation_CV::rotRadian2Matrix_Rodrigues(const double k1, const double k2, const double k3)
@@ -285,40 +271,15 @@ bool CTransformation_CV::rotMatrix2RotRadian_Rodrigues(const cv::Mat& rotMat, cv
 {
     rotVec = cv::Vec3d(0.0, 0.0, 0.0);
 
-    if (rotMat.cols != 3 || rotMat.rows != 3)
-    {
-        std::cerr << "rotMatrix2RotRadian_Rodrigues() rotMat != 3x3" << std::endl;
-        return false;
-    }
-
-    if (rotMat.channels() != 1)
-    {
-        std::cerr << "rotMatrix2RotRadian_Rodrigues() rotMat channels != 1" << std::endl;
-        return false;
-    }
-
-    if (CV_MAT_DEPTH(rotMat.type()) != CV_32F && CV_MAT_DEPTH(rotMat.type()) != CV_64F)
-    {
-        std::cerr << "rotMatrix2RotRadian_Rodrigues() rotMat type != float/double" << std::endl;
-        return false;
-    }
-
-    // cv::Rodrigues 的输出深度跟随输入，统一转成 CV_64F 后再读取，避免 at<double> 读 float 数据
+    // 形状/通道/深度校验，并统一转成 CV_64F（cv::Rodrigues 的输出深度跟随输入）
     cv::Mat rotMat64;
-    if (rotMat.type() == CV_64F)
+    if (!toRotMatrix64(rotMat, rotMat64))
     {
-        rotMat64 = rotMat;
-    }
-    else
-    {
-        rotMat.convertTo(rotMat64, CV_64F);
+        return false;
     }
 
-    // 检查旋转矩阵是否为正交矩阵（R^T * R = I）且行列式为 1
-    if (cv::norm(rotMat64.t() * rotMat64 - cv::Mat::eye(3, 3, CV_64F)) > TRANSFORM_TOL::CHECK_ORTHOGONAL
-        || std::abs(cv::determinant(rotMat64) - 1.0) > TRANSFORM_TOL::CHECK_ORTHOGONAL)
+    if (!isValidRotationMatrix64(rotMat64))
     {
-        std::cerr << "rotMatrix2RotRadian_Rodrigues() rotMat is not a valid rotation matrix" << std::endl;
         return false;
     }
 
@@ -328,6 +289,9 @@ bool CTransformation_CV::rotMatrix2RotRadian_Rodrigues(const cv::Mat& rotMat, cv
     rotVec[0] = rotVecMat.at<double>(0);
     rotVec[1] = rotVecMat.at<double>(1);
     rotVec[2] = rotVecMat.at<double>(2);
+
+    // 与 Eigen 侧保持一致：近 pi 时固定轴向符号
+    canonicalizeNearPiAxis(rotVec);
 
     return true;
 }
@@ -380,3 +344,123 @@ cv::Mat CTransformation_CV::pose2HmMatrix_Rodrigues(const S_POSE& pose, const E_
 {
     return pose2HmMatrix_Rodrigues(pose.X, pose.Y, pose.Z, pose.Rx, pose.Ry, pose.Rz, angleType);
 }
+
+// ---------------------------------------------------------------------------
+// 私有辅助：形状/深度校验与深度统一
+// ---------------------------------------------------------------------------
+bool CTransformation_CV::toRotMatrix64(const cv::Mat& rotMatrix, cv::Mat& rotMatrix64)
+{
+    if (rotMatrix.cols != 3 || rotMatrix.rows != 3)
+    {
+        std::cerr << "rotation matrix != 3x3" << std::endl;
+        return false;
+    }
+
+    if (rotMatrix.channels() != 1)
+    {
+        std::cerr << "rotation matrix channels != 1" << std::endl;
+        return false;
+    }
+
+    if (CV_MAT_DEPTH(rotMatrix.type()) != CV_32F && CV_MAT_DEPTH(rotMatrix.type()) != CV_64F)
+    {
+        std::cerr << "rotation matrix type != float/double" << std::endl;
+        return false;
+    }
+
+    // 统一转成 CV_64F：cv::Rodrigues 等函数输出深度跟随输入，混用会让 at<T> 读错数据
+    if (rotMatrix.type() == CV_64F)
+    {
+        rotMatrix64 = rotMatrix;
+    }
+    else
+    {
+        rotMatrix.convertTo(rotMatrix64, CV_64F);
+    }
+
+    return true;
+}
+
+bool CTransformation_CV::toHmMatrix64(const cv::Mat& hmMatrix, cv::Mat& hmMatrix64)
+{
+    if (hmMatrix.cols != 4 || hmMatrix.rows != 4)
+    {
+        std::cerr << "homogeneous matrix != 4x4" << std::endl;
+        return false;
+    }
+
+    if (hmMatrix.channels() != 1)
+    {
+        std::cerr << "homogeneous matrix channels != 1" << std::endl;
+        return false;
+    }
+
+    if (CV_MAT_DEPTH(hmMatrix.type()) != CV_32F && CV_MAT_DEPTH(hmMatrix.type()) != CV_64F)
+    {
+        std::cerr << "homogeneous matrix type != float/double" << std::endl;
+        return false;
+    }
+
+    if (hmMatrix.type() == CV_64F)
+    {
+        hmMatrix64 = hmMatrix;
+    }
+    else
+    {
+        hmMatrix.convertTo(hmMatrix64, CV_64F);
+    }
+
+    return true;
+}
+
+bool CTransformation_CV::isValidRotationMatrix64(const cv::Mat& rotMatrix64)
+{
+    // 正交性：R^T * R = I（Frobenius 范数）
+    if (cv::norm(rotMatrix64.t() * rotMatrix64 - cv::Mat::eye(3, 3, CV_64F)) > TRANSFORM_TOL::CHECK_ORTHOGONAL)
+    {
+        return false;
+    }
+
+    // 行列式为 1：用于排除镜像矩阵（det = -1）
+    return std::abs(cv::determinant(rotMatrix64) - 1.0) <= TRANSFORM_TOL::CHECK_ORTHOGONAL;
+}
+
+bool CTransformation_CV::isValidHmMatrix64(const cv::Mat& hmMatrix64)
+{
+    // 最后一行为 [0 0 0 1]
+    if (std::abs(hmMatrix64.at<double>(3, 0)) > TRANSFORM_TOL::CHECK_ORTHOGONAL
+        || std::abs(hmMatrix64.at<double>(3, 1)) > TRANSFORM_TOL::CHECK_ORTHOGONAL
+        || std::abs(hmMatrix64.at<double>(3, 2)) > TRANSFORM_TOL::CHECK_ORTHOGONAL
+        || std::abs(hmMatrix64.at<double>(3, 3) - 1.0) > TRANSFORM_TOL::CHECK_ORTHOGONAL)
+    {
+        return false;
+    }
+
+    return isValidRotationMatrix64(hmMatrix64(cv::Rect(0, 0, 3, 3)).clone());
+}
+
+void CTransformation_CV::canonicalizeNearPiAxis(cv::Vec3d& rotVec)
+{
+    const double theta = cv::norm(rotVec);
+    if (std::abs(theta - M_PI) >= TRANSFORM_TOL::BRANCH_NEAR_PI)
+    {
+        return;
+    }
+
+    // theta = pi 时 k 与 -k 表示同一个旋转；固定为「绝对值最大的分量为正」，
+    // 与 Eigen 侧约定一致，避免同一旋转返回方向相反的旋转向量
+    int pivot = 0;
+    for (int i = 1; i < 3; ++i)
+    {
+        if (std::abs(rotVec[i]) > std::abs(rotVec[pivot]))
+        {
+            pivot = i;
+        }
+    }
+
+    if (rotVec[pivot] < 0.0)
+    {
+        rotVec = cv::Vec3d(-rotVec[0], -rotVec[1], -rotVec[2]);
+    }
+}
+

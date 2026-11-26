@@ -56,8 +56,37 @@ Eigen::Vector3d CTransformation_EG::rotMatrix2RotDegree(const Eigen::Matrix3d& m
 	return rotMatrix2RotRadian(matrix, rotSeq) * 180 / M_PI;
 }
 
+bool CTransformation_EG::rotMatrix2RotDegree(const Eigen::Matrix3d& matrix, const E_ROTATION_SEQUENCE& rotSeq, Eigen::Vector3d& rotVec)
+{
+	if (!rotMatrix2RotRadian(matrix, rotSeq, rotVec))
+	{
+		return false;
+	}
+
+	rotVec *= 180 / M_PI;
+	return true;
+}
+
 Eigen::Vector3d CTransformation_EG::rotMatrix2RotRadian(const Eigen::Matrix3d& matrix, const E_ROTATION_SEQUENCE& rotSeq)
 {
+	Eigen::Vector3d rotVec = Eigen::Vector3d::Zero();
+
+	// 失败时保持返回零向量；需要区分「输入非法」与「零旋转」请使用返回 bool 的重载
+	rotMatrix2RotRadian(matrix, rotSeq, rotVec);
+
+	return rotVec;
+}
+
+bool CTransformation_EG::rotMatrix2RotRadian(const Eigen::Matrix3d& matrix, const E_ROTATION_SEQUENCE& rotSeq, Eigen::Vector3d& rotVec)
+{
+	rotVec = Eigen::Vector3d::Zero();
+
+	// 欧拉角反解隐含「输入是纯旋转矩阵」这一前提：含缩放或镜像的矩阵会解出无意义的角度
+	if (!isValidRotationMatrix(matrix))
+	{
+		return false;
+	}
+
 	double R11, R12, R13, R21, R22, R23, R31, R32, R33;
 	R11 = matrix(0, 0);		R12 = matrix(0, 1);		R13 = matrix(0, 2);
 	R21 = matrix(1, 0);		R22 = matrix(1, 1);		R23 = matrix(1, 2);
@@ -88,7 +117,8 @@ Eigen::Vector3d CTransformation_EG::rotMatrix2RotRadian(const Eigen::Matrix3d& m
 			rx = std::atan2(R32 / std::cos(ry), R33 / std::cos(ry));
 		}
 
-		return Eigen::Vector3d(rx, ry, rz);
+		rotVec = Eigen::Vector3d(rx, ry, rz);
+		return true;
 	}
 	else if (rotSeq == E_ROTATION_SEQUENCE::E_SEQ_ZYX)	// 未考虑到R11、R13为0时，解存在退化的问题
 	{
@@ -112,12 +142,12 @@ Eigen::Vector3d CTransformation_EG::rotMatrix2RotRadian(const Eigen::Matrix3d& m
 			rz = std::atan2(-R12 / std::cos(ry), R11 / std::cos(ry));
 		}
 
-		return Eigen::Vector3d(rx, ry, rz);
+		rotVec = Eigen::Vector3d(rx, ry, rz);
+		return true;
 	}
-	else
-	{
-		return Eigen::Vector3d();
-	}
+
+	// 旋转顺序非法（正常不会到达）
+	return false;
 }
 
 Eigen::Matrix4d CTransformation_EG::pose2HmMatrix(double x, double y, double z, double rx, double ry, double rz, const E_ROTATION_SEQUENCE& rotSeq, const E_ANGLE_TYPE& angleType)
@@ -151,27 +181,42 @@ Eigen::Matrix4d CTransformation_EG::pose2HmMatrix(const S_POSE& pose, const E_RO
 
 S_POSE CTransformation_EG::hmMatrix2Pose(const Eigen::Matrix4d& hmMatrix, const E_ROTATION_SEQUENCE& rotSeq, const E_ANGLE_TYPE& angleType)
 {
-	Eigen::Matrix3d rotMatrix = hmMatrix.block<3, 3>(0, 0);
+	S_POSE pose;
+
+	// 失败时返回各分量均为零的位姿；需要区分「矩阵非法」与「零位姿」请使用返回 bool 的重载
+	hmMatrix2Pose(hmMatrix, pose, rotSeq, angleType);
+
+	return pose;
+}
+
+bool CTransformation_EG::hmMatrix2Pose(const Eigen::Matrix4d& hmMatrix, S_POSE& pose, const E_ROTATION_SEQUENCE& rotSeq, const E_ANGLE_TYPE& angleType)
+{
+	pose = S_POSE();
+
+	if (!isValidHmMatrix(hmMatrix))
+	{
+		return false;
+	}
+
+	const Eigen::Matrix3d rotMatrix = hmMatrix.block<3, 3>(0, 0);
 
 	Eigen::Vector3d rotAngles;
-
-	if (angleType == E_ANGLE_TYPE::E_TYPE_DEGREE)
+	const bool ok = (angleType == E_ANGLE_TYPE::E_TYPE_DEGREE)
+		? rotMatrix2RotDegree(rotMatrix, rotSeq, rotAngles)
+		: rotMatrix2RotRadian(rotMatrix, rotSeq, rotAngles);
+	if (!ok)
 	{
-		rotAngles = rotMatrix2RotDegree(rotMatrix, rotSeq);
-	}
-	else
-	{
-		rotAngles = rotMatrix2RotRadian(rotMatrix, rotSeq);
+		return false;
 	}
 
-	double x = hmMatrix(0, 3);
-	double y = hmMatrix(1, 3);
-	double z = hmMatrix(2, 3);
-	double rx = rotAngles[0];
-	double ry = rotAngles[1];
-	double rz = rotAngles[2];
+	pose.X = hmMatrix(0, 3);
+	pose.Y = hmMatrix(1, 3);
+	pose.Z = hmMatrix(2, 3);
+	pose.Rx = rotAngles[0];
+	pose.Ry = rotAngles[1];
+	pose.Rz = rotAngles[2];
 
-	return S_POSE(x, y, z, rx, ry, rz);
+	return true;
 }
 
 Eigen::Matrix3d CTransformation_EG::rotRadian2Matrix_Rodrigues(const double k1, const double k2, const double k3)
@@ -221,9 +266,7 @@ bool CTransformation_EG::rotMatrix2RotRadian_Rodrigues(const Eigen::Matrix3d& ro
 {
 	rotVec = Eigen::Vector3d::Zero();
 
-	// 检查旋转矩阵是否为正交矩阵（R * R^T = I）且行列式为 1
-	if (!Eigen::Matrix3d::Identity().isApprox(rotMat.transpose() * rotMat, TRANSFORM_TOL::CHECK_ORTHOGONAL)
-		|| std::abs(rotMat.determinant() - 1.0) > TRANSFORM_TOL::CHECK_ORTHOGONAL)
+	if (!isValidRotationMatrix(rotMat))
 	{
 		return false;
 	}
@@ -267,7 +310,24 @@ bool CTransformation_EG::rotMatrix2RotRadian_Rodrigues(const Eigen::Matrix3d& ro
 			return false;
 		}
 
-		rotVec = theta * R_plus_I.col(maxCol).normalized();
+		// 固定近 pi 时的轴向符号：令绝对值最大的分量为正。
+		// theta = pi 时 k 与 -k 表示同一个旋转，R + I 无法区分二者；若不固定，
+		// 同一个旋转在不同输入下会返回方向相反的旋转向量，破坏插值/滤波的连续性。
+		Eigen::Vector3d axis = R_plus_I.col(maxCol).normalized();
+		int pivot = 0;
+		for (int i = 1; i < 3; ++i)
+		{
+			if (std::abs(axis[i]) > std::abs(axis[pivot]))
+			{
+				pivot = i;
+			}
+		}
+		if (axis[pivot] < 0.0)
+		{
+			axis = -axis;
+		}
+
+		rotVec = theta * axis;
 		return true;
 	}
 
@@ -331,5 +391,33 @@ Eigen::Matrix4d CTransformation_EG::pose2HmMatrix_Rodrigues(const double x, cons
 Eigen::Matrix4d CTransformation_EG::pose2HmMatrix_Rodrigues(const S_POSE& pose, const E_ANGLE_TYPE& angleType)
 {
 	return pose2HmMatrix_Rodrigues(pose.X, pose.Y, pose.Z, pose.Rx, pose.Ry, pose.Rz, angleType);
+}
+
+// ---------------------------------------------------------------------------
+// 私有辅助：输入校验
+// ---------------------------------------------------------------------------
+bool CTransformation_EG::isValidRotationMatrix(const Eigen::Matrix3d& rotMatrix)
+{
+	// 正交性：R^T * R = I（isApprox 使用相对容差）
+	if (!Eigen::Matrix3d::Identity().isApprox(rotMatrix.transpose() * rotMatrix, TRANSFORM_TOL::CHECK_ORTHOGONAL))
+	{
+		return false;
+	}
+
+	// 行列式为 1：用于排除镜像矩阵（det = -1）
+	return std::abs(rotMatrix.determinant() - 1.0) <= TRANSFORM_TOL::CHECK_ORTHOGONAL;
+}
+
+bool CTransformation_EG::isValidHmMatrix(const Eigen::Matrix4d& hmMatrix)
+{
+	// 最后一行为 [0 0 0 1]
+	const Eigen::Vector4d lastRow = hmMatrix.row(3).transpose();
+	const Eigen::Vector4d expectedLastRow(0.0, 0.0, 0.0, 1.0);
+	if ((lastRow - expectedLastRow).norm() > TRANSFORM_TOL::CHECK_ORTHOGONAL)
+	{
+		return false;
+	}
+
+	return isValidRotationMatrix(hmMatrix.block<3, 3>(0, 0));
 }
 

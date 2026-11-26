@@ -543,6 +543,171 @@ static void test_eg_cv_consistency()
 	CHECK(maxPoseErr < 1e-6);
 }
 
+
+// ===========================================================================
+// A4：欧拉角反解的正交性校验
+// ===========================================================================
+static void test_euler_validation()
+{
+	section("EG/CV: 欧拉角反解的正交性校验（回归）");
+
+	// 1.5 倍缩放矩阵：以前静默返回零旋转，现在应判为非法
+	const Eigen::Matrix3d scaled = 1.5 * Eigen::Matrix3d::Identity();
+
+	Eigen::Vector3d angles(7.0, 8.0, 9.0);
+	CHECK(!CTransformation_EG::rotMatrix2RotDegree(scaled, E_ROTATION_SEQUENCE::E_SEQ_XYZ, angles));
+	CHECK(angles.norm() == 0.0);
+	CHECK(!CTransformation_EG::rotMatrix2RotRadian(scaled, E_ROTATION_SEQUENCE::E_SEQ_XYZ, angles));
+
+	// 镜像矩阵（行列式为 -1）同样非法
+	Eigen::Matrix3d mirrored = Eigen::Matrix3d::Identity();
+	mirrored(0, 0) = -1.0;
+	CHECK(!CTransformation_EG::rotMatrix2RotDegree(mirrored, E_ROTATION_SEQUENCE::E_SEQ_XYZ, angles));
+
+	// 合法矩阵仍应正常解算
+	const Eigen::Matrix3d valid = CTransformation_EG::rotDegree2Matrix(10.0, 20.0, 30.0);
+	CHECK(CTransformation_EG::rotMatrix2RotDegree(valid, E_ROTATION_SEQUENCE::E_SEQ_XYZ, angles));
+	CHECK(std::abs(angles[0] - 10.0) < 1e-9);
+	CHECK(std::abs(angles[1] - 20.0) < 1e-9);
+	CHECK(std::abs(angles[2] - 30.0) < 1e-9);
+
+	// 兼容接口在非法输入下返回零向量
+	CHECK(CTransformation_EG::rotMatrix2RotDegree(scaled).norm() == 0.0);
+
+	// OpenCV 侧行为一致
+	cv::Mat cvScaled = 1.5 * cv::Mat::eye(3, 3, CV_64F);
+	cv::Vec3d cvAngles(7.0, 8.0, 9.0);
+	CHECK(!CTransformation_CV::rotMatrix2RotDegree(cvScaled, E_ROTATION_SEQUENCE::E_SEQ_XYZ, cvAngles));
+	CHECK(cv::norm(cvAngles) == 0.0);
+
+	cv::Mat cvValid = CTransformation_CV::rotDegree2Matrix(10.0, 20.0, 30.0);
+	CHECK(CTransformation_CV::rotMatrix2RotDegree(cvValid, E_ROTATION_SEQUENCE::E_SEQ_XYZ, cvAngles));
+	CHECK(std::abs(cvAngles[1] - 20.0) < 1e-9);
+}
+
+// ===========================================================================
+// A5：齐次矩阵最后一行校验
+// ===========================================================================
+static void test_hm_matrix_validation()
+{
+	section("EG/CV: 齐次矩阵的最后一行校验（回归）");
+
+	const S_POSE source(1.0, 2.0, 3.0, 10.0, 20.0, 30.0);
+
+	// 合法矩阵
+	Eigen::Matrix4d egMatrix = CTransformation_EG::pose2HmMatrix(source);
+	S_POSE pose;
+	CHECK(CTransformation_EG::hmMatrix2Pose(egMatrix, pose));
+	CHECK(std::abs(pose.X - 1.0) < 1e-9);
+	CHECK(std::abs(pose.Rz - 30.0) < 1e-9);
+
+	// 最后一行非法
+	Eigen::Matrix4d badEg = egMatrix;
+	badEg(3, 0) = 5.0;
+	CHECK(!CTransformation_EG::hmMatrix2Pose(badEg, pose));
+	CHECK(pose.X == 0.0 && pose.Rz == 0.0);					// 失败时清零
+	CHECK(CTransformation_EG::hmMatrix2Pose(badEg).X == 0.0);	// 兼容接口
+
+	// 旋转块带缩放
+	Eigen::Matrix4d scaledEg = egMatrix;
+	scaledEg.block<3, 3>(0, 0) *= 1.5;
+	CHECK(!CTransformation_EG::hmMatrix2Pose(scaledEg, pose));
+
+	// OpenCV 侧
+	cv::Mat cvMatrix = CTransformation_CV::pose2HmMatrix(source);
+	CHECK(CTransformation_CV::hmMatrix2Pose(cvMatrix, pose));
+	CHECK(std::abs(pose.X - 1.0) < 1e-9);
+
+	cv::Mat badCv = cvMatrix.clone();
+	badCv.at<double>(3, 0) = 5.0;
+	CHECK(!CTransformation_CV::hmMatrix2Pose(badCv, pose));
+	CHECK(pose.X == 0.0);
+
+	// CV_32F 的齐次矩阵仍应可用（内部统一转 CV_64F）
+	cv::Mat cv32;
+	cvMatrix.convertTo(cv32, CV_32F);
+	CHECK(CTransformation_CV::hmMatrix2Pose(cv32, pose));
+	CHECK(std::abs(pose.Rz - 30.0) < 1e-4);
+}
+
+// ===========================================================================
+// A7：近 pi 的轴向符号固定
+// ===========================================================================
+static void test_near_pi_axis_sign()
+{
+	section("EG/CV: 近 pi 的轴向符号固定（回归）");
+
+	int egBadSign = 0;
+	int cvBadSign = 0;
+	int mismatch = 0;
+	double maxRebuildErr = 0.0;
+
+	for (int i = 0; i < 500; ++i)
+	{
+		const Eigen::Vector3d axis = randomUnitVector();
+		const double theta = M_PI - uniform(0.0, 1e-7);
+		const Eigen::Matrix3d rotMat = CTransformation_EG::rotRadian2Matrix_Rodrigues(theta * axis.x(), theta * axis.y(), theta * axis.z());
+
+		Eigen::Vector3d egVec;
+		CHECK(CTransformation_EG::rotMatrix2RotRadian_Rodrigues(rotMat, egVec));
+
+		// 约定：绝对值最大的分量为正
+		int pivot = 0;
+		for (int k = 1; k < 3; ++k)
+		{
+			if (std::abs(egVec[k]) > std::abs(egVec[pivot]))
+			{
+				pivot = k;
+			}
+		}
+		if (egVec[pivot] <= 0.0)
+		{
+			++egBadSign;
+		}
+
+		const Eigen::Matrix3d rebuild = CTransformation_EG::rotRadian2Matrix_Rodrigues(egVec.x(), egVec.y(), egVec.z());
+		maxRebuildErr = std::max(maxRebuildErr, (rebuild - rotMat).norm());
+
+		// OpenCV 侧应给出同一轴向约定
+		cv::Mat rotMatCv3(3, 3, CV_64F);
+		for (int r = 0; r < 3; ++r)
+		{
+			for (int c = 0; c < 3; ++c)
+			{
+				rotMatCv3.at<double>(r, c) = rotMat(r, c);
+			}
+		}
+
+		cv::Vec3d cvVec;
+		CHECK(CTransformation_CV::rotMatrix2RotRadian_Rodrigues(rotMatCv3, cvVec));
+
+		int pivotCv = 0;
+		for (int k = 1; k < 3; ++k)
+		{
+			if (std::abs(cvVec[k]) > std::abs(cvVec[pivotCv]))
+			{
+				pivotCv = k;
+			}
+		}
+		if (cvVec[pivotCv] <= 0.0)
+		{
+			++cvBadSign;
+		}
+
+		const Eigen::Vector3d diff(egVec[0] - cvVec[0], egVec[1] - cvVec[1], egVec[2] - cvVec[2]);
+		if (diff.norm() > 1e-4)
+		{
+			++mismatch;
+		}
+	}
+
+	info("矩阵重建最大误差", maxRebuildErr);
+	CHECK(maxRebuildErr < 1e-5);
+	CHECK(egBadSign == 0);
+	CHECK(cvBadSign == 0);
+	CHECK(mismatch == 0);
+}
+
 // ===========================================================================
 int main()
 {
@@ -571,6 +736,10 @@ int main()
 	test_cv_rodrigues_pose_angle_type();
 
 	test_eg_cv_consistency();
+
+	test_euler_validation();
+	test_hm_matrix_validation();
+	test_near_pi_axis_sign();
 
 	std::cout << std::endl << "================ 测试结果 ================" << std::endl;
 	std::cout << "  用例总数: " << g_checked << std::endl;

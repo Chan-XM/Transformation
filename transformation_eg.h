@@ -177,6 +177,46 @@ public:
 	/// <param name="angleType">角度/弧度</param>
 	/// <returns>齐次矩阵</returns>
 	static Eigen::Matrix4d pose2HmMatrix_Rodrigues(const S_POSE& pose, const E_ANGLE_TYPE& angleType = E_ANGLE_TYPE::E_TYPE_DEGREE);
+	/// <summary>
+	/// 旋转矩阵 -> 旋转角（弧度）可区分失败
+	/// </summary>
+	/// <param name="matrix">旋转矩阵（3x3，需满足正交且行列式为1）</param>
+	/// <param name="rotSeq">旋转角顺序</param>
+	/// <param name="rotVec">输出旋转角（弧度制）；失败时置为零向量</param>
+	/// <returns>成功返回true；矩阵非法返回false</returns>
+	static bool rotMatrix2RotRadian(const Eigen::Matrix3d& matrix, const E_ROTATION_SEQUENCE& rotSeq, Eigen::Vector3d& rotVec);
+
+	/// <summary>
+	/// 旋转矩阵 -> 旋转角（角度）可区分失败
+	/// </summary>
+	/// <param name="matrix">旋转矩阵（3x3，需满足正交且行列式为1）</param>
+	/// <param name="rotSeq">旋转角顺序</param>
+	/// <param name="rotVec">输出旋转角（角度制）；失败时置为零向量</param>
+	/// <returns>成功返回true；矩阵非法返回false</returns>
+	static bool rotMatrix2RotDegree(const Eigen::Matrix3d& matrix, const E_ROTATION_SEQUENCE& rotSeq, Eigen::Vector3d& rotVec);
+
+	/// <summary>
+	/// 齐次矩阵转为位姿（可区分失败）
+	/// </summary>
+	/// <param name="hmMatrix">齐次矩阵（4x4，需满足旋转块正交且最后一行为[0 0 0 1]）</param>
+	/// <param name="pose">输出位姿；失败时各分量置零</param>
+	/// <param name="rotSeq">旋转角顺序 默认按照X-Y-Z固定角坐标系（或Z-Y-X欧拉角坐标系 二者等价）</param>
+	/// <param name="angleType">角度单位 默认为degree</param>
+	/// <returns>成功返回true；矩阵非法返回false</returns>
+	static bool hmMatrix2Pose(const Eigen::Matrix4d& hmMatrix, S_POSE& pose,
+		const E_ROTATION_SEQUENCE& rotSeq = E_ROTATION_SEQUENCE::E_SEQ_XYZ,
+		const E_ANGLE_TYPE& angleType = E_ANGLE_TYPE::E_TYPE_DEGREE);
+
+private:
+	/// <summary>
+	/// 校验3x3旋转矩阵（正交且行列式为1）
+	/// </summary>
+	static bool isValidRotationMatrix(const Eigen::Matrix3d& rotMatrix);
+
+	/// <summary>
+	/// 校验4x4齐次矩阵（旋转块合法且最后一行为[0 0 0 1]）
+	/// </summary>
+	static bool isValidHmMatrix(const Eigen::Matrix4d& hmMatrix);
 };
 
 #endif // !TRANSFORMATION_EG_H

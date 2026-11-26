@@ -55,6 +55,9 @@ struct S_POSE
 public:
 	explicit S_POSE(double x, double y, double z, double rx, double ry, double rz)
 		:X(x), Y(y), Z(z), Rx(rx), Ry(ry), Rz(rz) {};
+
+	/// 默认构造：分量全部置零，便于作为输出参数使用
+	S_POSE() : X(0.0), Y(0.0), Z(0.0), Rx(0.0), Ry(0.0), Rz(0.0) {}
 public:
 	double X;	double Y;	double Z;
 	double Rx;	double Ry;	double Rz;
