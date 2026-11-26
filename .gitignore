@@ -369,3 +369,13 @@ Transformation.vcxproj.user
 
 # SelfDefine
 *.dll
+
+##############################################################
+# CMake
+##############################################################
+build/
+out/
+CMakeUserPresets.json
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake

@@ -6,21 +6,22 @@
 
 ## 运行方式
 
-在 Visual Studio 中把 `TransformationTest` 设为启动项目后按 F5，或直接运行：
+测试工程由 CMake 管理（见上层 `README.md`），构建后位于 `build/bin/<Config>/`，
+对应的 OpenCV dll 已随构建自动复制到同目录，无需设置 `PATH`：
 
 ```powershell
-# 需要 OpenCV 的 dll 在 PATH 中
-$env:PATH = "E:\installed\OpenCV\opencv_4.7.0_vc16\build\x64\vc16\bin;$env:PATH"
-.\x64\Debug\TransformationTest.exe
+cmake --preset windows-x64        # 首次：生成 Visual Studio 工程到 build/
+cmake --build --preset debug      # 或 --preset release
+ctest --preset debug              # 通过 CTest 运行，失败时会打印用例输出
 ```
 
-命令行构建：
+也可以直接运行可执行文件——**退出码即失败用例个数**，0 表示全部通过，便于接入其它 CI：
 
 ```powershell
-msbuild Transformation.sln /p:Configuration=Debug /p:Platform=x64
+.\build\bin\Debug\TransformationTest.exe
 ```
 
-退出码为失败用例个数，0 表示全部通过，便于接入 CI。
+在 Visual Studio 中调试时，打开 `build/Transformation.slnx`，把 `TransformationTest` 设为启动项目即可。
 
 ## 用例清单
 
