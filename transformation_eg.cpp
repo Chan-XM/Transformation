@@ -10,7 +10,7 @@
 *****************************************************************************/
 
 #include "transformation_eg.h"
-#include <iostream>
+#include <algorithm>
 
 double CTransformation_EG::degree2Radian(const double& degree)
 {
@@ -181,7 +181,7 @@ Eigen::Matrix3d CTransformation_EG::rotRadian2Matrix_Rodrigues(const double k1, 
 	double theta = rotation_vector.norm();				// 旋转角度
 
 	// 角度接近0，则返回单位阵
-	if (theta < 1e-6)
+	if (theta < TRANSFORM_TOL::BRANCH_ZERO_ANGLE)
 	{
 		return Eigen::Matrix3d::Identity();
 	}
@@ -210,56 +210,99 @@ Eigen::Matrix3d CTransformation_EG::rotDegree2Matrix_Rodrigues(const double k1, 
 
 Eigen::Vector3d CTransformation_EG::rotMatrix2RotRadian_Rodrigues(const Eigen::Matrix3d& rotMat)
 {
+	Eigen::Vector3d rotVec = Eigen::Vector3d::Zero();
+
+	// 失败时保持返回零向量；需要区分「输入非法」与「零旋转」请使用返回 bool 的重载
+	rotMatrix2RotRadian_Rodrigues(rotMat, rotVec);
+
+	return rotVec;
+}
+
+bool CTransformation_EG::rotMatrix2RotRadian_Rodrigues(const Eigen::Matrix3d& rotMat, Eigen::Vector3d& rotVec)
+{
+	rotVec = Eigen::Vector3d::Zero();
+
 	// 检查旋转矩阵是否为正交矩阵（R * R^T = I）且行列式为 1
-	if (!Eigen::Matrix3d::Identity().isApprox(rotMat.transpose() * rotMat, 1e-6) || std::abs(rotMat.determinant() - 1.0) > 1e-6)
+	if (!Eigen::Matrix3d::Identity().isApprox(rotMat.transpose() * rotMat, TRANSFORM_TOL::CHECK_ORTHOGONAL)
+		|| std::abs(rotMat.determinant() - 1.0) > TRANSFORM_TOL::CHECK_ORTHOGONAL)
 	{
-		return Eigen::Vector3d(0, 0, 0);
+		return false;
 	}
 
-	// 计算旋转角度 θ
-	double theta = std::acos((rotMat.trace() - 1.0) / 2.0);
+	// 夹取到 acos 的定义域：即使通过上面的校验，(trace - 1) / 2 仍可能略微超出 [-1, 1]
+	// 不夹取时 acos 会返回 NaN，且 NaN 会一路传播到调用方
+	const double cosTheta = std::max(-1.0, std::min(1.0, (rotMat.trace() - 1.0) / 2.0));
 
-	// 如果 θ 接近 0，说明旋转矩阵接近单位矩阵
-	if (std::abs(theta) < 1e-6)
+	// 计算旋转角度 theta
+	const double theta = std::acos(cosTheta);
+
+	// 如果 theta 接近 0，说明旋转矩阵接近单位矩阵，旋转向量取零向量
+	if (theta < TRANSFORM_TOL::BRANCH_ZERO_ANGLE)
 	{
-		return Eigen::Vector3d(0, 0, 0);
+		return true;
 	}
 
-	// 如果 θ 接近 π，需特别处理以避免数值不稳定性
-	if (std::abs(theta - M_PI) < 1e-6)
+	// 如果 theta 接近 pi，需特别处理以避免数值不稳定性
+	if (std::abs(theta - M_PI) < TRANSFORM_TOL::BRANCH_NEAR_PI)
 	{
-		// 找到旋转轴方向（从反对称[K]_x提取）
-		Eigen::Matrix3d R_plus_I = rotMat + Eigen::Matrix3d::Identity();
-		Eigen::Vector3d k;
-		if (R_plus_I.col(0).norm() > 1e-6)
+		// 找到旋转轴方向：theta = pi 时 R + I = 2 * k * k^T
+		// 必须取范数最大的那一列：若某分量 k_i 很小，对应列会被 O(pi - theta) 的项污染，
+		// 此时归一化得到的方向误差可达 1e-2 量级
+		const Eigen::Matrix3d R_plus_I = rotMat + Eigen::Matrix3d::Identity();
+
+		int maxCol = 0;
+		double maxNorm = R_plus_I.col(0).norm();
+		for (int c = 1; c < 3; ++c)
 		{
-			k = R_plus_I.col(0).normalized();
-		}
-		else if (R_plus_I.col(1).norm() > 1e-6)
-		{
-			k = R_plus_I.col(1).normalized();
-		}
-		else
-		{
-			k = R_plus_I.col(2).normalized();
+			const double colNorm = R_plus_I.col(c).norm();
+			if (colNorm > maxNorm)
+			{
+				maxNorm = colNorm;
+				maxCol = c;
+			}
 		}
 
-		return theta * k;
+		if (maxNorm < TRANSFORM_TOL::BRANCH_AXIS_ELEMENT)
+		{
+			// 理论上不可达：合法的旋转矩阵在 theta = pi 时必有 2 * k * k^T 的非零列
+			return false;
+		}
+
+		rotVec = theta * R_plus_I.col(maxCol).normalized();
+		return true;
 	}
 
-	// 计算旋转轴 k
+	// 由反对称部分提取旋转轴：R - R^T = 2 * sin(theta) * [k]_x
 	Eigen::Vector3d k;
 	k.x() = rotMat(2, 1) - rotMat(1, 2);
 	k.y() = rotMat(0, 2) - rotMat(2, 0);
 	k.z() = rotMat(1, 0) - rotMat(0, 1);
-	k = k.normalized();
 
-	return theta * k;
+	const double kNorm = k.norm();
+	if (kNorm < TRANSFORM_TOL::BRANCH_ZERO_ANGLE)
+	{
+		// 正交矩阵不应进入此分支（theta 非零时 sin(theta) 必非零），仅作防御性判断
+		return false;
+	}
+
+	rotVec = theta * (k / kNorm);
+	return true;
 }
 
 Eigen::Vector3d CTransformation_EG::rotMatrix2RotDegree_Rodrigues(const Eigen::Matrix3d& rotMat)
 {
 	return rotMatrix2RotRadian_Rodrigues(rotMat) * 180 / M_PI;
+}
+
+bool CTransformation_EG::rotMatrix2RotDegree_Rodrigues(const Eigen::Matrix3d& rotMat, Eigen::Vector3d& rotVec)
+{
+	if (!rotMatrix2RotRadian_Rodrigues(rotMat, rotVec))
+	{
+		return false;
+	}
+
+	rotVec *= 180 / M_PI;
+	return true;
 }
 
 Eigen::Matrix4d CTransformation_EG::pose2HmMatrix_Rodrigues(const double x, const double y, const double z, const double k1, const double k2, const double k3, const E_ANGLE_TYPE& angleType)

@@ -9,6 +9,7 @@
 *  @license  NON															 *
 *****************************************************************************/
 #include "transformation_cv.h"
+#include <iostream>
 
 double CTransformation_CV::degree2Radian(const double& degree)
 {
@@ -262,24 +263,83 @@ cv::Mat CTransformation_CV::rotDegree2Matrix_Rodrigues(const double k1, const do
 
 cv::Vec3d CTransformation_CV::rotMatrix2RotRadian_Rodrigues(const cv::Mat& rotMat)
 {
-    cv::Vec3d rotAngle;
+    cv::Vec3d rotVec(0.0, 0.0, 0.0);
 
-    cv::Mat rotAngleMat;
-    cv::Rodrigues(rotMat, rotAngleMat);
-    rotAngle[0] = rotAngleMat.at<double>(0);
-    rotAngle[1] = rotAngleMat.at<double>(1);
-    rotAngle[2] = rotAngleMat.at<double>(2);
+    // 失败时保持返回零向量；需要区分「输入非法」与「零旋转」请使用返回 bool 的重载
+    rotMatrix2RotRadian_Rodrigues(rotMat, rotVec);
 
-    return rotAngle;
+    return rotVec;
+}
+
+bool CTransformation_CV::rotMatrix2RotRadian_Rodrigues(const cv::Mat& rotMat, cv::Vec3d& rotVec)
+{
+    rotVec = cv::Vec3d(0.0, 0.0, 0.0);
+
+    if (rotMat.cols != 3 || rotMat.rows != 3)
+    {
+        std::cerr << "rotMatrix2RotRadian_Rodrigues() rotMat != 3x3" << std::endl;
+        return false;
+    }
+
+    if (rotMat.channels() != 1)
+    {
+        std::cerr << "rotMatrix2RotRadian_Rodrigues() rotMat channels != 1" << std::endl;
+        return false;
+    }
+
+    if (CV_MAT_DEPTH(rotMat.type()) != CV_32F && CV_MAT_DEPTH(rotMat.type()) != CV_64F)
+    {
+        std::cerr << "rotMatrix2RotRadian_Rodrigues() rotMat type != float/double" << std::endl;
+        return false;
+    }
+
+    // cv::Rodrigues 的输出深度跟随输入，统一转成 CV_64F 后再读取，避免 at<double> 读 float 数据
+    cv::Mat rotMat64;
+    if (rotMat.type() == CV_64F)
+    {
+        rotMat64 = rotMat;
+    }
+    else
+    {
+        rotMat.convertTo(rotMat64, CV_64F);
+    }
+
+    // 检查旋转矩阵是否为正交矩阵（R^T * R = I）且行列式为 1
+    if (cv::norm(rotMat64.t() * rotMat64 - cv::Mat::eye(3, 3, CV_64F)) > TRANSFORM_TOL::CHECK_ORTHOGONAL
+        || std::abs(cv::determinant(rotMat64) - 1.0) > TRANSFORM_TOL::CHECK_ORTHOGONAL)
+    {
+        std::cerr << "rotMatrix2RotRadian_Rodrigues() rotMat is not a valid rotation matrix" << std::endl;
+        return false;
+    }
+
+    cv::Mat rotVecMat;
+    cv::Rodrigues(rotMat64, rotVecMat);
+
+    rotVec[0] = rotVecMat.at<double>(0);
+    rotVec[1] = rotVecMat.at<double>(1);
+    rotVec[2] = rotVecMat.at<double>(2);
+
+    return true;
 }
 
 cv::Vec3d CTransformation_CV::rotMatrix2RotDegree_Rodrigues(const cv::Mat& rotMat)
 {
-    cv::Vec3d rotAngle = rotMatrix2RotRadian_Rodrigues(rotMat);
+    cv::Vec3d rotVec = rotMatrix2RotRadian_Rodrigues(rotMat);
 
-    rotAngle = rotAngle * 180 / M_PI;
+    rotVec = rotVec * 180 / M_PI;
 
-    return rotAngle;
+    return rotVec;
+}
+
+bool CTransformation_CV::rotMatrix2RotDegree_Rodrigues(const cv::Mat& rotMat, cv::Vec3d& rotVec)
+{
+    if (!rotMatrix2RotRadian_Rodrigues(rotMat, rotVec))
+    {
+        return false;
+    }
+
+    rotVec = rotVec * 180 / M_PI;
+    return true;
 }
 
 cv::Mat CTransformation_CV::pose2HmMatrix_Rodrigues(const double x, const double y, const double z, const double k1, const double k2, const double k3, const E_ANGLE_TYPE& angleType)
